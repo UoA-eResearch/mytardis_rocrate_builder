@@ -139,6 +139,7 @@ class MedicalCondition(BaseObject):
     code_source: Path
     schema_type = "MedicalCondition"
 
+
 @dataclass
 class ACL(ContextObject):
     """Acess level controls in MyTardis provided to people and groups
@@ -153,6 +154,7 @@ class ACL(ContextObject):
     permission_type = "ReadPermission"
     schema_type = "DigitalDocumentPermission"
 
+
 @dataclass
 class MyTardisContextObject(ContextObject):
     """Context objects containing MyTardis specific properties.
@@ -160,11 +162,13 @@ class MyTardisContextObject(ContextObject):
 
     Attr:
         acls (List[ACL]): access level controls associated with the object
-        metadata (Dict[str: MTMetadata]): MyTardis metadata 
+        metadata (Dict[str: MTMetadata]): MyTardis metadata
         associated with the object
     """
+
     acls: Optional[List[ACL]]
     metadata: Optional[Dict[str, MTMetadata]]
+
 
 @dataclass
 class Participant(MyTardisContextObject):
@@ -177,6 +181,7 @@ class Participant(MyTardisContextObject):
     sex: str
     ethnicity: str
     project: str
+
 
 @dataclass
 class Project(MyTardisContextObject):
@@ -194,7 +199,6 @@ class Project(MyTardisContextObject):
     mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
     ethics_policy: Optional[str]
     schema_type = "Project"
-    
 
 
 @dataclass
@@ -214,7 +218,9 @@ class Experiment(MyTardisContextObject):
 
 
 @dataclass
-class SampleExperiment(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
+class SampleExperiment(
+    Experiment
+):  # pylint: disable=too-many-instance-attributes
     """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from Experiment
     https://schema.org/DataCatalog
     Combination type with bioschemas biosample for additional sample data feilds
