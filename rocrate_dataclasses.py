@@ -155,6 +155,21 @@ class Participant(ContextObject):
 
 
 @dataclass
+class ACL(ContextObject):
+    """Acess level controls in MyTardis provided to people and groups
+    based on https://schema.org/DigitalDocumentPermission
+    grantee - the user or group granted access"""
+
+    grantee: str
+    grantee_type: str
+    mytardis_owner: bool = False
+    mytardis_can_download: bool = False
+    mytardis_see_sensitive: bool = False
+    permission_type = "ReadPermission"
+    schema_type = "DigitalDocumentPermission"
+
+
+@dataclass
 class Project(ContextObject):
     """Concrete Project class for RO-Crate - inherits from ContextObject
     https://schema.org/Project
@@ -170,6 +185,7 @@ class Project(ContextObject):
     mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
     ethics_policy: Optional[str]
     schema_type = "Project"
+    acls: Optional[List[ACL]]
 
 
 @dataclass
@@ -185,6 +201,7 @@ class Experiment(ContextObject):
     mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
     participant: Optional[Participant]
     schema_type = "DataCatalog"
+    acls: Optional[List[ACL]]
 
 
 @dataclass
@@ -225,6 +242,7 @@ class Dataset(ContextObject):
     contributors: Optional[List[Person]]
     instrument: Instrument
     schema_type = "Dataset"
+    acls: Optional[List[ACL]]
 
     # mytardis_classification: str #NOT IN SCHEMA.ORG
     def update_path(self, new_path: Path) -> None:
@@ -249,6 +267,7 @@ class Datafile(ContextObject):
     # mytardis_classification: str #NOT IN SCHEMA.ORG
     dataset: Path
     schema_type = "File"
+    acls: Optional[List[ACL]]
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root
