@@ -15,6 +15,7 @@ from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
 from src.rocrate_dataclasses.rocrate_dataclasses import (  # BaseObject,
+    ACL,
     ContextObject,
     Datafile,
     Dataset,
@@ -27,6 +28,9 @@ from src.rocrate_dataclasses.rocrate_dataclasses import (  # BaseObject,
 
 MT_METADATA_TYPE = "my_tardis_metadata"
 logger = logging.getLogger(__name__)
+
+JsonProperties = Dict[str, str | List[str] | Dict[str, Any]]
+IdentiferType = str | int | float
 
 
 class ROBuilder:
@@ -51,7 +55,7 @@ class ROBuilder:
         self.flatten_additional_properties = flatten_additional_properties
 
     def _add_metadata_to_crate(
-        self, metadata_obj: MTMetadata, metadata_id: str, parent_id: str | int | float
+        self, metadata_obj: MTMetadata, metadata_id: str, parent_id: IdentiferType
     ) -> None:
         """Add a MyTardis Metadata object to the crate
 
@@ -91,6 +95,27 @@ class ROBuilder:
             )
 
         self.crate.add(metadata)
+
+    def _add_object_acls(
+        self, properties: JsonProperties, acls: List[ACL], partent_id: str
+    ) -> JsonProperties:
+        """add access level controls to an object
+
+        Args:
+            properties (_type_): the properties dict of the parent object
+            acls (List[ACL]): lsit of access level control objects
+            partent_id (str): the id of the parent object
+
+        Returns:
+            JsonProperties: the properties updated with the ACLs
+        """
+        has_digital_permission = []
+        for acl in acls:
+            acl_entity = self.crate.dereference(acl.id) or self.add_acl(acl)
+            acl_entity.append_to("subjectOf", partent_id)
+            has_digital_permission.append(acl_entity.identifier)
+        properties["hasDigitalDocumentPermission"] = has_digital_permission
+        return properties
 
     def __add_organisation(self, organisation: Organisation) -> None:
         """Read in an Organisation object and create a Organization entity in the crate
@@ -216,16 +241,16 @@ class ROBuilder:
 
     def _add_metadata(
         self,
-        parent_name: str | int | float,
-        properties: Dict[str, str | List[str] | Dict[str, Any]],
+        parent_name: IdentiferType,
+        properties: JsonProperties,
         metadata: Dict[str, MTMetadata],
-    ) -> Dict[str, str | List[str] | Dict[str, Any]]:
+    ) -> JsonProperties:
         """Add generic metadata to the properties dictionary for a RO-Crate obj
 
         Args:
-            properties (Dict[str, str | List[str] | Dict[str, Any]]): The properties to be
+            properties (JsonProperties): The properties to be
                 added to the RO-Crate
-            metadata (Dict[str, str | List[str] | Dict[str, Any]]): A dictionary of metadata
+            metadata (JsonProperties): A dictionary of metadata
                 to be added to the RO-Crate obj
 
         Returns:
@@ -248,7 +273,7 @@ class ROBuilder:
         self,
         properties: Dict[str, Any],
         additional_properties: Dict[str, Any],
-    ) -> Dict[str, str | List[str] | Dict[str, Any]]:
+    ) -> JsonProperties:
         entity_properties = properties
         if not self.flatten_additional_properties:
             properties["additonal properties"] = {}
@@ -276,10 +301,10 @@ class ROBuilder:
 
     def _add_dates(
         self,
-        properties: Dict[str, str | List[str] | Dict[str, Any]],
+        properties: JsonProperties,
         date_created: datetime,
         date_modified: Optional[List[datetime]] = None,
-    ) -> Dict[str, str | List[str] | Dict[str, Any]]:
+    ) -> JsonProperties:
         """Add dates, where present, to the metadata
 
         Args:
@@ -289,7 +314,7 @@ class ROBuilder:
                 Defaults to None.
 
         Returns:
-            Dict[str, str | List[str] | Dict[str, Any]]: _description_
+            JsonProperties: _description_
         """
         properties["dateCreated"] = date_created.isoformat()
         if date_modified:
@@ -330,17 +355,19 @@ class ROBuilder:
                 properties=properties,
                 additional_properties=project.additional_properties,
             )
+
         project_obj = ContextEntity(
             self.crate,
             project.id,
             properties=properties,
         )
+
         return self._add_identifiers(project, project_obj)
 
     def _update_experiment_meta(
         self,
         experiment: Experiment,
-        properties: Dict[str, str | list[str] | dict[str, Any]],
+        properties: JsonProperties,
     ) -> ContextEntity:
         """Update the metadata for an experiment and create the context entity for the experiment
 
@@ -379,7 +406,7 @@ class ROBuilder:
         # Note that this is being created as a data catalog object as there are no better
         # fits
 
-        properties: Dict[str, str | list[str] | dict[str, Any]] = {
+        properties: JsonProperties = {
             "@type": "DataCatalog",
             "name": experiment.name,
             "description": experiment.description,
@@ -403,7 +430,7 @@ class ROBuilder:
             for experiment in dataset.experiments
         ]
 
-        properties: Dict[str, str | list[str] | Dict[str, Any]] = {
+        properties: JsonProperties = {
             "identifiers": identifier,
             "name": dataset.name,
             "description": dataset.description,
@@ -486,6 +513,32 @@ class ROBuilder:
         dataset_obj.append_to("hasPart", datafile_obj)
         return self._add_identifiers(datafile, datafile_obj)
 
+    def add_acl(self, acl: ACL) -> DataEntity:
+        """Add an individual ACL to the RO-Crate
+
+        Args:
+            acl (ACL): the ACL to be added
+
+        Returns:
+            DataEntity: the RO-Crate context entity representing the ACL
+        """
+        if not self.crate.dereference(acl.grantee):
+            self.add_context_object(
+                context_object=ContextObject(
+                    name=acl.grantee,
+                    description=f"Owner of ACL: {acl.grantee}",
+                    identifiers=[acl.grantee],
+                    schema_type=["Organization"]
+                    if "organization" in acl.grantee_type
+                    else ["Person"],
+                    date_created=None,
+                    date_modified=None,
+                    metadata=None,
+                    additional_properties=None,
+                )
+            )
+        return self.add_context_object(acl)
+
     def add_context_object(self, context_object: ContextObject) -> DataEntity:
         """Add a generic context object to the RO crate
 
@@ -499,7 +552,7 @@ class ROBuilder:
         identifier = context_object.id
         properties = context_object.__dict__
         if context_object.schema_type:
-            properties["@type"] = context_object.schema_type
+            properties["@type"] = properties.pop("schema_type")
         if context_object.metadata:
             properties = self._add_metadata(
                 identifier, properties, context_object.metadata
