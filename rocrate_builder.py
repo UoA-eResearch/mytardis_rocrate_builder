@@ -24,6 +24,7 @@ from src.rocrate_dataclasses.rocrate_dataclasses import (  # BaseObject,
     Organisation,
     Person,
     Project,
+    MyTardisContextObject
 )
 
 MT_METADATA_TYPE = "my_tardis_metadata"
@@ -97,12 +98,13 @@ class ROBuilder:
         self.crate.add(metadata)
 
     def _add_object_acls(
-        self, properties: JsonProperties, acls: List[ACL], partent_id: str
+        self, properties: JsonProperties, acls: List[ACL], partent_id: IdentiferType
     ) -> JsonProperties:
         """add access level controls to an object
 
         Args:
-            properties (_type_): the properties dict of the parent object
+            properties (Dict[str, str | List[str] | Dict[str,str]]): 
+                the properties dict of the parent object
             acls (List[ACL]): lsit of access level control objects
             partent_id (str): the id of the parent object
 
@@ -113,7 +115,7 @@ class ROBuilder:
         for acl in acls:
             acl_entity = self.crate.dereference(acl.id) or self.add_acl(acl)
             acl_entity.append_to("subjectOf", partent_id)
-            has_digital_permission.append(acl_entity.identifier)
+            has_digital_permission.append(acl_entity.id)
         properties["hasDigitalDocumentPermission"] = has_digital_permission
         return properties
 
@@ -322,6 +324,24 @@ class ROBuilder:
         properties["datePublished"] = date_created.isoformat()
         return properties
 
+    def _update_properties(self, data_object:MyTardisContextObject, properties:JsonProperties) -> JsonProperties:
+        if data_object.metadata:
+            properties = self._add_metadata(data_object.id, properties, data_object.metadata)
+        if data_object.acls:
+            properties = self._add_object_acls(properties, data_object.acls, data_object.id)
+        if data_object.date_created:
+            properties = self._add_dates(
+                properties,
+                data_object.date_created,
+                data_object.date_modified,
+            )
+        if data_object.additional_properties:
+            properties = self._add_additional_properties(
+                properties=properties,
+                additional_properties=data_object.additional_properties,
+            )
+        return properties
+
     def add_project(self, project: Project) -> ContextEntity:
         """Add a project to the RO crate
 
@@ -341,21 +361,8 @@ class ROBuilder:
             "principal_investigator": principal_investigator.id,
             "contributors": [contributor.id for contributor in contributors],
         }
-
-        if project.metadata:
-            properties = self._add_metadata(project.id, properties, project.metadata)
-        if project.date_created:
-            properties = self._add_dates(
-                properties,
-                project.date_created,
-                project.date_modified,
-            )
-        if project.additional_properties:
-            properties = self._add_additional_properties(
-                properties=properties,
-                additional_properties=project.additional_properties,
-            )
-
+        
+        properties = self._update_properties(data_object=project, properties=properties)
         project_obj = ContextEntity(
             self.crate,
             project.id,
@@ -378,19 +385,7 @@ class ROBuilder:
             ContextEntity: the returned crate context entity
         """
         identifier = experiment.id
-        if experiment.metadata:
-            properties = self._add_metadata(identifier, properties, experiment.metadata)
-        if experiment.date_created:
-            properties = self._add_dates(
-                properties,
-                experiment.date_created,
-                experiment.date_modified,
-            )
-        if experiment.additional_properties:
-            properties = self._add_additional_properties(
-                properties=properties,
-                additional_properties=experiment.additional_properties,
-            )
+        properties = self._update_properties(data_object=experiment, properties=properties)
         return ContextEntity(
             self.crate,
             identifier,
@@ -425,6 +420,7 @@ class ROBuilder:
         """
         directory = dataset.directory
         identifier = directory.as_posix()
+        dataset.identifiers.append(identifier)
         experiments: List[str] = [
             self.crate.dereference("#" + experiment).id
             for experiment in dataset.experiments
@@ -439,19 +435,7 @@ class ROBuilder:
         if dataset.instrument and isinstance(dataset.instrument, ContextObject):
             instrument_id = self.add_context_object(dataset.instrument).id
         properties["instrument"] = instrument_id
-        if dataset.metadata:
-            properties = self._add_metadata(identifier, properties, dataset.metadata)
-        if dataset.date_created:
-            properties = self._add_dates(
-                properties,
-                dataset.date_created,
-                dataset.date_modified,
-            )
-        if dataset.additional_properties:
-            properties = self._add_additional_properties(
-                properties=properties,
-                additional_properties=dataset.additional_properties,
-            )
+        properties = self._update_properties(data_object=dataset, properties=properties)
 
         if identifier == ".":
             logger.debug("Updating root dataset")
@@ -477,24 +461,13 @@ class ROBuilder:
             DataEntity: the datafile RO-Crate entity that will be written to the json-LD
         """
         identifier = datafile.filepath.as_posix()
+        datafile.identifiers.append(identifier)
         properties: Dict[str, Any] = {
             "identifiers": identifier,
             "name": datafile.name,
             "description": datafile.description,
         }
-        if datafile.metadata:
-            properties = self._add_metadata(identifier, properties, datafile.metadata)
-        if datafile.date_created:
-            properties = self._add_dates(
-                properties,
-                datafile.date_created,
-                datafile.date_modified,
-            )
-        if datafile.additional_properties:
-            properties = self._add_additional_properties(
-                properties=properties,
-                additional_properties=datafile.additional_properties,
-            )
+        properties = self._update_properties(data_object=datafile, properties=properties)
         source = (
             self.crate.source / datafile.filepath
             if (self.crate.source / datafile.filepath).exists()
@@ -525,7 +498,7 @@ class ROBuilder:
         if not self.crate.dereference(acl.grantee):
             self.add_context_object(
                 context_object=ContextObject(
-                    name=acl.grantee,
+                    name=f"{acl.grantee} ACL holder",
                     description=f"Owner of ACL: {acl.grantee}",
                     identifiers=[acl.grantee],
                     schema_type=["Organization"]
@@ -533,7 +506,6 @@ class ROBuilder:
                     else ["Person"],
                     date_created=None,
                     date_modified=None,
-                    metadata=None,
                     additional_properties=None,
                 )
             )
@@ -551,7 +523,7 @@ class ROBuilder:
 
         identifier = context_object.id
         properties = context_object.__dict__
-        if context_object.schema_type:
+        if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")
         if context_object.metadata:
             properties = self._add_metadata(
