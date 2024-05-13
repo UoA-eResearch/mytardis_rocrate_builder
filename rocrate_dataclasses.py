@@ -111,7 +111,6 @@ class ContextObject(BaseObject):
     identifiers: List[str | int | float]
     date_created: Optional[datetime]
     date_modified: Optional[List[datetime]]
-    metadata: Optional[Dict[str, MTMetadata]]  # NOT IN SCHEMA.ORG
     additional_properties: Optional[Dict[str, Any]]
     schema_type: Optional[str | list[str]]
 
@@ -140,20 +139,6 @@ class MedicalCondition(BaseObject):
     code_source: Path
     schema_type = "MedicalCondition"
 
-
-@dataclass
-class Participant(ContextObject):
-    """participants of a study
-    # to be flattend back into Experiment when read into MyTardis
-    # person biosample object"""
-
-    date_of_birth: str
-    nhi_number: str
-    sex: str
-    ethnicity: str
-    project: str
-
-
 @dataclass
 class ACL(ContextObject):
     """Acess level controls in MyTardis provided to people and groups
@@ -168,9 +153,33 @@ class ACL(ContextObject):
     permission_type = "ReadPermission"
     schema_type = "DigitalDocumentPermission"
 
+@dataclass
+class MyTardisContextObject(ContextObject):
+    """Context objects containing MyTardis specific properties.
+    These properties are not used by other RO-Crate endpoints.
+
+    Attr:
+        acls (List[ACL]): access level controls associated with the object
+        metadata (Dict[str: MTMetadata]): MyTardis metadata 
+        associated with the object
+    """
+    acls: Optional[List[ACL]]
+    metadata: Optional[Dict[str, MTMetadata]]
 
 @dataclass
-class Project(ContextObject):
+class Participant(MyTardisContextObject):
+    """participants of a study
+    # to be flattend back into Experiment when read into MyTardis
+    # person biosample object"""
+
+    date_of_birth: str
+    nhi_number: str
+    sex: str
+    ethnicity: str
+    project: str
+
+@dataclass
+class Project(MyTardisContextObject):
     """Concrete Project class for RO-Crate - inherits from ContextObject
     https://schema.org/Project
 
@@ -185,11 +194,11 @@ class Project(ContextObject):
     mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
     ethics_policy: Optional[str]
     schema_type = "Project"
-    acls: Optional[List[ACL]]
+    
 
 
 @dataclass
-class Experiment(ContextObject):
+class Experiment(MyTardisContextObject):
     """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from ContextObject
     https://schema.org/DataCatalog
     Attr:
@@ -205,7 +214,7 @@ class Experiment(ContextObject):
 
 
 @dataclass
-class SampleExperiment(Experiment):  # pylint: disable=too-many-instance-attributes
+class SampleExperiment(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
     """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from Experiment
     https://schema.org/DataCatalog
     Combination type with bioschemas biosample for additional sample data feilds
@@ -230,7 +239,7 @@ class SampleExperiment(Experiment):  # pylint: disable=too-many-instance-attribu
 
 
 @dataclass
-class Dataset(ContextObject):
+class Dataset(MyTardisContextObject):
     """Concrete Dataset class for RO-crate - inherits from ContextObject
 
     Attr:
@@ -256,7 +265,7 @@ class Dataset(ContextObject):
 
 
 @dataclass
-class Datafile(ContextObject):
+class Datafile(MyTardisContextObject):
     """Concrete datafile class for RO-crate - inherits from ContextObject
 
     Attr:
@@ -264,7 +273,6 @@ class Datafile(ContextObject):
     """
 
     filepath: Path
-    # mytardis_classification: str #NOT IN SCHEMA.ORG
     dataset: Path
     schema_type = "File"
     acls: Optional[List[ACL]]
