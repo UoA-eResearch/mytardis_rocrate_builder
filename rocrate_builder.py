@@ -21,10 +21,10 @@ from src.rocrate_dataclasses.rocrate_dataclasses import (  # BaseObject,
     Dataset,
     Experiment,
     MTMetadata,
+    MyTardisContextObject,
     Organisation,
     Person,
     Project,
-    MyTardisContextObject
 )
 
 MT_METADATA_TYPE = "my_tardis_metadata"
@@ -103,7 +103,7 @@ class ROBuilder:
         """add access level controls to an object
 
         Args:
-            properties (Dict[str, str | List[str] | Dict[str,str]]): 
+            properties (Dict[str, str | List[str] | Dict[str,str]]):
                 the properties dict of the parent object
             acls (List[ACL]): lsit of access level control objects
             partent_id (str): the id of the parent object
@@ -324,11 +324,17 @@ class ROBuilder:
         properties["datePublished"] = date_created.isoformat()
         return properties
 
-    def _update_properties(self, data_object:MyTardisContextObject, properties:JsonProperties) -> JsonProperties:
+    def _update_properties(
+        self, data_object: MyTardisContextObject, properties: JsonProperties
+    ) -> JsonProperties:
         if data_object.metadata:
-            properties = self._add_metadata(data_object.id, properties, data_object.metadata)
+            properties = self._add_metadata(
+                data_object.id, properties, data_object.metadata
+            )
         if data_object.acls:
-            properties = self._add_object_acls(properties, data_object.acls, data_object.id)
+            properties = self._add_object_acls(
+                properties, data_object.acls, data_object.id
+            )
         if data_object.date_created:
             properties = self._add_dates(
                 properties,
@@ -361,7 +367,7 @@ class ROBuilder:
             "principal_investigator": principal_investigator.id,
             "contributors": [contributor.id for contributor in contributors],
         }
-        
+
         properties = self._update_properties(data_object=project, properties=properties)
         project_obj = ContextEntity(
             self.crate,
@@ -385,7 +391,9 @@ class ROBuilder:
             ContextEntity: the returned crate context entity
         """
         identifier = experiment.id
-        properties = self._update_properties(data_object=experiment, properties=properties)
+        properties = self._update_properties(
+            data_object=experiment, properties=properties
+        )
         return ContextEntity(
             self.crate,
             identifier,
@@ -467,7 +475,9 @@ class ROBuilder:
             "name": datafile.name,
             "description": datafile.description,
         }
-        properties = self._update_properties(data_object=datafile, properties=properties)
+        properties = self._update_properties(
+            data_object=datafile, properties=properties
+        )
         source = (
             self.crate.source / datafile.filepath
             if (self.crate.source / datafile.filepath).exists()
