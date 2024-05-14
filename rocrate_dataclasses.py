@@ -6,8 +6,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from slugify import slugify
-
 
 @dataclass
 class Organisation:
@@ -171,19 +169,6 @@ class MyTardisContextObject(ContextObject):
 
 
 @dataclass
-class Participant(MyTardisContextObject):
-    """participants of a study
-    # to be flattend back into Experiment when read into MyTardis
-    # person biosample object"""
-
-    date_of_birth: str
-    nhi_number: str
-    sex: str
-    ethnicity: str
-    project: str
-
-
-@dataclass
 class Project(MyTardisContextObject):
     """Concrete Project class for RO-Crate - inherits from ContextObject
     https://schema.org/Project
@@ -212,36 +197,8 @@ class Experiment(MyTardisContextObject):
     projects: List[str]  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]]
     mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
-    participant: Optional[Participant]
     schema_type = "DataCatalog"
     acls: Optional[List[ACL]]
-
-
-@dataclass
-class SampleExperiment(
-    Experiment
-):  # pylint: disable=too-many-instance-attributes
-    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from Experiment
-    https://schema.org/DataCatalog
-    Combination type with bioschemas biosample for additional sample data feilds
-    https://bioschemas.org/types/BioSample/0.1-RELEASE-2019_06_19
-    Attr:
-        project (str): An identifier for a project
-    """
-
-    additional_property: Optional[List[Dict[str, str]]]
-    sex: Optional[str]
-    associated_disease: Optional[List[MedicalCondition]]
-    body_location: Optional[
-        MedicalCondition
-    ]  # not defined in either sample or data catalog
-    # but found here https://schema.org/body_location
-    tissue_processing_method: Optional[str]
-    participant: Participant
-    analyate: Optional[str]
-    portion: Optional[str]
-    participant_metadata: Optional[Dict[str, MTMetadata]]
-    schema_type = "DataCatalog"
 
 
 @dataclass
@@ -296,34 +253,3 @@ class Datafile(MyTardisContextObject):
             new_filepath = self.filepath
         self.filepath = new_filepath
         return self.filepath
-
-
-def convert_to_property_value(
-    json_element: Dict[str, Any] | Any, name: str
-) -> Dict[str, Any]:
-    """convert a json element into property values for compliance with RO-Crate
-
-    Args:
-        json_element (Dict[str, Any] | Any): the json to turn into a Property value
-        name (str): the name for the partent json
-
-    Returns:
-        Dict[str, Any]: the input as a property value
-    """
-    if not isinstance(json_element, Dict) and not isinstance(json_element, List):
-        return {"@type": "PropertyValue", "name": name, "value": json_element}
-    if isinstance(json_element, List):
-        return {
-            "@type": "PropertyValue",
-            "name": name,
-            "value": [
-                convert_to_property_value(item, slugify(f"{name}-{index}"))
-                for index, item in enumerate(json_element)
-            ],
-        }
-    json_element["@type"] = "PropertyValue"
-    json_element["name"] = name
-    for key, value in json_element.items():
-        if isinstance(value, (Dict, List)):
-            json_element[key] = convert_to_property_value(value, key)
-    return json_element
