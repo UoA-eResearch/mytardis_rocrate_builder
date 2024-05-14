@@ -14,8 +14,8 @@ from rocrate.model.encryptedcontextentity import (  # pylint: disable=import-err
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from src.rocrate_dataclasses.rocrate_dataclasses import (  # BaseObject,
-    ACL,
+from src.rocrate_dataclasses.rocrate_dataclasses import ACL  # BaseObject,
+from src.rocrate_dataclasses.rocrate_dataclasses import (
     ContextObject,
     Datafile,
     Dataset,
@@ -532,13 +532,11 @@ class ROBuilder:
         """
 
         identifier = context_object.id
-        properties = context_object.__dict__
+        properties = {
+            key: value for key, value in context_object.__dict__.items() if value
+        }
         if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")
-        if context_object.metadata:
-            properties = self._add_metadata(
-                identifier, properties, context_object.metadata
-            )
         if context_object.date_created:
             properties = self._add_dates(
                 properties,
