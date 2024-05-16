@@ -440,9 +440,10 @@ class ROBuilder:
             "description": dataset.description,
             "includedInDataCatalog": experiments,
         }
+        instrument_id = dataset.instrument.id
         if dataset.instrument and isinstance(dataset.instrument, ContextObject):
             instrument_id = self.add_context_object(dataset.instrument).id
-        properties["instrument"] = instrument_id
+        properties["instrument"] = str(instrument_id)
         properties = self._update_properties(data_object=dataset, properties=properties)
 
         if identifier == ".":
