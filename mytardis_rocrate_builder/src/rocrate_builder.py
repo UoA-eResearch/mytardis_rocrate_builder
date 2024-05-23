@@ -14,8 +14,8 @@ from rocrate.model.encryptedcontextentity import (  # pylint: disable=import-err
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from src.rocrate_dataclasses.rocrate_dataclasses import ACL  # BaseObject,
-from src.rocrate_dataclasses.rocrate_dataclasses import (
+from .rocrate__dataclasses.rocrate_dataclasses import(
+    ACL,
     ContextObject,
     Datafile,
     Dataset,
@@ -24,8 +24,7 @@ from src.rocrate_dataclasses.rocrate_dataclasses import (
     MyTardisContextObject,
     Organisation,
     Person,
-    Project,
-)
+    Project)
 
 MT_METADATA_TYPE = "my_tardis_metadata"
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from slugify import slugify
 
-from src.rocrate_dataclasses.rocrate_dataclasses import (
+from .rocrate_dataclasses import (
     Datafile,
     Dataset,
     Experiment,

@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "mytardis-rocrate-builder"
+version = "0.1.0"
+description = ""
+authors = ["James Love <james.love@auckland.ac.nz>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+slugify = "^0.0.1"
+ro-crate-py = {git = "https://github.com/UoA-eResearch/ro-crate-py.git",  branch = "encrypted-metadata"}
+bagit = "^1.8.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
