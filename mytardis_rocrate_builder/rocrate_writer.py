@@ -11,8 +11,7 @@ import bagit
 from rocrate.rocrate import ROCrate
 
 from .rocrate_builder import ROBuilder
-from .rocrate__dataclasses.data_class_utils import CrateManifest
-
+from .rocrate_dataclasses.data_class_utils import CrateManifest
 
 logger = logging.getLogger(__name__)
 

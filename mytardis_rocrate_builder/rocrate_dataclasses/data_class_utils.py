@@ -7,12 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from slugify import slugify
 
-from .rocrate_dataclasses import (
-    Datafile,
-    Dataset,
-    Experiment,
-    Project,
-)
+from .rocrate_dataclasses import Datafile, Dataset, Experiment, Project
 
 
 class CrateManifest:

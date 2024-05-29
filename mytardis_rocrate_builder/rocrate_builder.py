@@ -1,5 +1,6 @@
 """Builder class and functions for translating RO-Crate dataclasses into RO-Crate Entities
 """
+
 import logging
 import re
 from datetime import datetime
@@ -8,23 +9,17 @@ from typing import Any, Dict, List, Optional
 
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.data_entity import DataEntity
-from rocrate.model.encryptedcontextentity import (  # pylint: disable=import-error, no-name-in-module
-    EncryptedContextEntity,
-)
+from rocrate.model.encryptedcontextentity import \
+    EncryptedContextEntity  # pylint: disable=import-error, no-name-in-module
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from .rocrate_dataclasses.rocrate_dataclasses import(
-    ACL,
-    ContextObject,
-    Datafile,
-    Dataset,
-    Experiment,
-    MTMetadata,
-    MyTardisContextObject,
-    Organisation,
-    Person,
-    Project)
+from .rocrate_dataclasses.rocrate_dataclasses import (ACL, ContextObject,
+                                                      Datafile, Dataset,
+                                                      Experiment, MTMetadata,
+                                                      MyTardisContextObject,
+                                                      Organisation, Person,
+                                                      Project)
 
 MT_METADATA_SCHEMATYPE = "my_tardis_metadata"
 logger = logging.getLogger(__name__)
@@ -437,7 +432,7 @@ class ROBuilder:
         directory = dataset.directory
         identifier = directory.as_posix()
         dataset.identifiers.append(identifier)
-        experiments =  []
+        experiments = []
         for experiment in dataset.experiments:
             if crate_experiment := self.crate.dereference("#" + experiment.id):
                 experiments.append(crate_experiment.id)
@@ -459,11 +454,19 @@ class ROBuilder:
         if identifier == ".":
             logger.debug("Updating root dataset")
             self.crate.root_dataset.properties().update(properties)
-            self.crate.root_dataset.source = self.crate.source / Path(directory) if self.crate.source else Path(directory)
+            self.crate.root_dataset.source = (
+                self.crate.source / Path(directory)
+                if self.crate.source
+                else Path(directory)
+            )
             dataset_obj = self.crate.root_dataset
         else:
             dataset_obj = self.crate.add_dataset(
-                source=self.crate.source / Path(directory) if self.crate.source else Path(directory),
+                source=(
+                    self.crate.source / Path(directory)
+                    if self.crate.source
+                    else Path(directory)
+                ),
                 properties=properties,
                 dest_path=Path(directory),
             )
@@ -522,9 +525,11 @@ class ROBuilder:
                     name=f"{acl.grantee} ACL holder",
                     description=f"Owner of ACL: {acl.grantee}",
                     identifiers=[acl.grantee],
-                    schema_type=["Organization"]
-                    if "organization" in acl.grantee_type
-                    else ["Person"],
+                    schema_type=(
+                        ["Organization"]
+                        if "organization" in acl.grantee_type
+                        else ["Person"]
+                    ),
                     date_created=None,
                     date_modified=None,
                     additional_properties=None,
@@ -544,7 +549,9 @@ class ROBuilder:
 
         identifier = context_object.id
         properties = {
-            key: value for key, value in context_object.__dict__.items() if value != None
+            key: value
+            for key, value in context_object.__dict__.items()
+            if value != None
         }
         if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")

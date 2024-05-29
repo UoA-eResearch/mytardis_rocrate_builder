@@ -1,6 +1,7 @@
 .venv
-*.pyc 
+*.pyc
 __pycache__/
 pytest.xml
 .env
 .vscode/*
+.mypy_cache/

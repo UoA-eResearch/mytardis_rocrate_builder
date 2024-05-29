@@ -3,10 +3,9 @@
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from enum import Enum
-
 
 MT_METADATA_TYPE = {
     1: "NUMERIC",
@@ -153,6 +152,7 @@ class Instrument(ContextObject):
     location: str
     schema_type = ["Instrument", "Thing"]
 
+
 @dataclass
 class ACL(ContextObject):
     """Acess level controls in MyTardis provided to people and groups
@@ -164,6 +164,7 @@ class ACL(ContextObject):
     mytardis_owner: bool = False
     mytardis_can_download: bool = False
     mytardis_see_sensitive: bool = False
+
     def __post_init__(self):
         self.permission_type = "ReadPermission"
         self.schema_type = "DigitalDocumentPermission"
@@ -198,9 +199,9 @@ class Project(MyTardisContextObject):
     principal_investigator: Person  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]]
     schema_type: Optional[str]
+
     def __post_init__(self):
         self.schema_type = "Project"
-            
 
 
 @dataclass
@@ -215,9 +216,9 @@ class Experiment(MyTardisContextObject):
     contributors: Optional[List[Person]]
     mytardis_classification: Optional[DataClassification]  # NOT IN SCHEMA.ORG
     schema_type: Optional[str]
+
     def __post_init__(self):
         self.schema_type = "DataCatalog"
-
 
 
 @dataclass
@@ -233,10 +234,11 @@ class Dataset(MyTardisContextObject):
     contributors: Optional[List[Person]]
     instrument: Instrument
     schema_type: Optional[str]
+
     def __post_init__(self):
         self.identifiers = [self.directory] + self.identifiers
         self.schema_type = "Dataset"
-    
+
     # mytardis_classification: str #NOT IN SCHEMA.ORG
     def update_path(self, new_path: Path) -> None:
         """Update the path of a dataset chanigng it's name and identifiers
@@ -259,6 +261,7 @@ class Datafile(MyTardisContextObject):
     filepath: Path
     dataset: Dataset
     schema_type: Optional[str]
+
     def __post_init__(self):
         self.schema_type = "File"
         self.identifiers = [self.filepath] + self.identifiers

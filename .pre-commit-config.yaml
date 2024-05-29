@@ -1,0 +1,59 @@
+---
+repos:
+-   repo: https://github.com/rcmdnk/pyproject-pre-commit
+    rev: v0.1.9
+    hooks:
+    - id: black
+    - id: isort
+    - id: mypy
+      language: python
+      args:
+        - "--ignore-missing-imports"
+        - "--strict-optional"
+      additional_dependencies:
+        - "pydantic_settings"
+        - "types-requests"
+        - "types-python-slugify"
+        - "backoff"
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+    -   id: trailing-whitespace
+-   repo: https://github.com/PyCQA/pylint
+    rev: v3.1.0
+    hooks:
+    - id: pylint
+      stages: [commit]
+      name: pylint
+      entry: pylint
+      language: python
+      additional_dependencies:
+        - bagit
+        - pytest
+        - backoff
+        - pydantic
+        - pydantic_settings
+        - rocrate
+-   repo: local
+    hooks:
+    - id: pytest-check
+      name: pytest-check
+      language: system
+      entry: pytest -vv tests
+      types: [python]
+      pass_filenames: false
+      always_run: true
+-   repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.3
+    hooks:
+    -   id: python-safety-dependencies-check
+        files: pyproject.toml
+-   repo: local
+    hooks:
+     -   id: wily
+         stages: [pre-push]
+         name: wily
+         entry: wily diff
+         verbose: true
+         language: python
+         additional_dependencies: [wily]
