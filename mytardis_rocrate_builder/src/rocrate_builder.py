@@ -14,7 +14,7 @@ from rocrate.model.encryptedcontextentity import (  # pylint: disable=import-err
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from .rocrate__dataclasses.rocrate_dataclasses import(
+from .rocrate_dataclasses.rocrate_dataclasses import(
     ACL,
     ContextObject,
     Datafile,
@@ -26,7 +26,7 @@ from .rocrate__dataclasses.rocrate_dataclasses import(
     Person,
     Project)
 
-MT_METADATA_TYPE = "my_tardis_metadata"
+MT_METADATA_SCHEMATYPE = "my_tardis_metadata"
 logger = logging.getLogger(__name__)
 
 JsonProperties = Dict[str, str | List[str] | Dict[str, Any]]
@@ -56,7 +56,7 @@ class ROBuilder:
 
     def _add_metadata_to_crate(
         self, metadata_obj: MTMetadata, metadata_id: str, parent_id: IdentiferType
-    ) -> None:
+    ) -> ContextEntity:
         """Add a MyTardis Metadata object to the crate
 
         Args:
@@ -71,7 +71,7 @@ class ROBuilder:
                 self.crate,
                 metadata_id,
                 properties={
-                    "@type": MT_METADATA_TYPE,
+                    "@type": MT_METADATA_SCHEMATYPE,
                     "name": metadata_obj.name,
                     "value": metadata_obj.value,
                     "myTardis-type": metadata_obj.mt_type,
@@ -85,7 +85,7 @@ class ROBuilder:
                 self.crate,
                 metadata_id,
                 properties={
-                    "@type": MT_METADATA_TYPE,
+                    "@type": MT_METADATA_SCHEMATYPE,
                     "name": metadata_obj.name,
                     "value": metadata_obj.value,
                     "myTardis-type": metadata_obj.mt_type,
@@ -94,7 +94,7 @@ class ROBuilder:
                 },
             )
 
-        self.crate.add(metadata)
+        return self.crate.add(metadata)
 
     def _add_object_acls(
         self, properties: JsonProperties, acls: List[ACL], partent_id: IdentiferType
@@ -407,12 +407,21 @@ class ROBuilder:
         """
         # Note that this is being created as a data catalog object as there are no better
         # fits
-
+        projects = []
+        for project in experiment.projects:
+            if crate_project := self.crate.dereference("#" + project.id):
+                projects.append(crate_project.id)
+            else:
+                projects.append(self.add_project(project).id)
+        # projects: List[Project] = [
+        #     self.crate.dereference("#" + project.id).id
+        #     for project in experiment.projects
+        # ]
         properties: JsonProperties = {
             "@type": "DataCatalog",
             "name": experiment.name,
             "description": experiment.description,
-            "project": experiment.projects,
+            "project": projects,
         }
         experiment_obj = self._update_experiment_meta(
             experiment=experiment, properties=properties
@@ -428,10 +437,12 @@ class ROBuilder:
         directory = dataset.directory
         identifier = directory.as_posix()
         dataset.identifiers.append(identifier)
-        experiments: List[str] = [
-            self.crate.dereference("#" + experiment).id
-            for experiment in dataset.experiments
-        ]
+        experiments =  []
+        for experiment in dataset.experiments:
+            if crate_experiment := self.crate.dereference("#" + experiment.id):
+                experiments.append(crate_experiment.id)
+            else:
+                experiments.append(self.add_experiment(experiment).id)
 
         properties: JsonProperties = {
             "identifiers": identifier,
@@ -448,11 +459,11 @@ class ROBuilder:
         if identifier == ".":
             logger.debug("Updating root dataset")
             self.crate.root_dataset.properties().update(properties)
-            self.crate.root_dataset.source = self.crate.source / Path(directory)
+            self.crate.root_dataset.source = self.crate.source / Path(directory) if self.crate.source else Path(directory)
             dataset_obj = self.crate.root_dataset
         else:
             dataset_obj = self.crate.add_dataset(
-                source=self.crate.source / Path(directory),
+                source=self.crate.source / Path(directory) if self.crate.source else Path(directory),
                 properties=properties,
                 dest_path=Path(directory),
             )
@@ -483,7 +494,7 @@ class ROBuilder:
             if (self.crate.source / datafile.filepath).exists()
             else identifier
         )
-        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset)
+        dataset_obj: DataEntity = self.crate.dereference(datafile.Dataset.id)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
         destination_path = source
@@ -533,7 +544,7 @@ class ROBuilder:
 
         identifier = context_object.id
         properties = {
-            key: value for key, value in context_object.__dict__.items() if value
+            key: value for key, value in context_object.__dict__.items() if value != None
         }
         if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")

@@ -5,6 +5,34 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from enum import Enum
+
+
+MT_METADATA_TYPE = {
+    1: "NUMERIC",
+    2: "STRING",
+    3: "URL",
+    4: "LINK",
+    5: "FILENAME",
+    6: "DATETIME",
+    7: "LONGSTRING",
+    8: "JSON",
+    "default": "STRING",
+}
+
+
+class DataClassification(Enum):
+    """An enumerator for data classification.
+
+    Gaps have been left deliberately in the enumeration to allow for intermediate
+    classifications of data that may arise. The larger the integer that the classification
+    resolves to, the less sensitive the data is.
+    """
+
+    RESTRICTED = 1
+    SENSITIVE = 25
+    INTERNAL = 50
+    PUBLIC = 100
 
 
 @dataclass
@@ -125,19 +153,6 @@ class Instrument(ContextObject):
     location: str
     schema_type = ["Instrument", "Thing"]
 
-
-@dataclass
-class MedicalCondition(BaseObject):
-    """object for medical condtions that correspond to various
-    standards and codes from https://schema.org/MedicalCondition
-    """
-
-    code_type: str
-    code_text: str
-    code_source: Path
-    schema_type = "MedicalCondition"
-
-
 @dataclass
 class ACL(ContextObject):
     """Acess level controls in MyTardis provided to people and groups
@@ -149,8 +164,9 @@ class ACL(ContextObject):
     mytardis_owner: bool = False
     mytardis_can_download: bool = False
     mytardis_see_sensitive: bool = False
-    permission_type = "ReadPermission"
-    schema_type = "DigitalDocumentPermission"
+    def __post_init__(self):
+        self.permission_type = "ReadPermission"
+        self.schema_type = "DigitalDocumentPermission"
 
 
 @dataclass
@@ -181,9 +197,10 @@ class Project(MyTardisContextObject):
 
     principal_investigator: Person  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]]
-    mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
-    ethics_policy: Optional[str]
-    schema_type = "Project"
+    schema_type: Optional[str]
+    def __post_init__(self):
+        self.schema_type = "Project"
+            
 
 
 @dataclass
@@ -194,11 +211,13 @@ class Experiment(MyTardisContextObject):
         project (str): An identifier for a project
     """
 
-    projects: List[str]  # NOT IN SCHEMA.ORG
+    projects: List[Project]  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]]
-    mytardis_classification: Optional[str]  # NOT IN SCHEMA.ORG
-    schema_type = "DataCatalog"
-    acls: Optional[List[ACL]]
+    mytardis_classification: Optional[DataClassification]  # NOT IN SCHEMA.ORG
+    schema_type: Optional[str]
+    def __post_init__(self):
+        self.schema_type = "DataCatalog"
+
 
 
 @dataclass
@@ -213,9 +232,11 @@ class Dataset(MyTardisContextObject):
     directory: Path
     contributors: Optional[List[Person]]
     instrument: Instrument
-    schema_type = "Dataset"
-    acls: Optional[List[ACL]]
-
+    schema_type: Optional[str]
+    def __post_init__(self):
+        self.identifiers = [self.directory] + self.identifiers
+        self.schema_type = "Dataset"
+    
     # mytardis_classification: str #NOT IN SCHEMA.ORG
     def update_path(self, new_path: Path) -> None:
         """Update the path of a dataset chanigng it's name and identifiers
@@ -236,9 +257,11 @@ class Datafile(MyTardisContextObject):
     """
 
     filepath: Path
-    dataset: Path
-    schema_type = "File"
-    acls: Optional[List[ACL]]
+    dataset: Dataset
+    schema_type: Optional[str]
+    def __post_init__(self):
+        self.schema_type = "File"
+        self.identifiers = [self.filepath] + self.identifiers
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root

@@ -10,8 +10,20 @@ python = "^3.11"
 slugify = "^0.0.1"
 ro-crate-py = {git = "https://github.com/UoA-eResearch/ro-crate-py.git",  branch = "encrypted-metadata"}
 bagit = "^1.8.1"
+types-python-slugify = "^8.0.2.20240310"
+mypy = "^1.10.0"
+pylint = "^3.2.2"
+pydantic = "^2.7.1"
+black = "^24.4.2"
 
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.2.1"
+requests-mock = "^1.12.1"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+disable_error_code = "import-untyped"
