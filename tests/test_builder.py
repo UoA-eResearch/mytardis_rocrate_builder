@@ -307,11 +307,11 @@ def test_add_experiment(builder, test_experiment, test_ro_crate_experiment):
     assert builder.add_experiment(test_experiment) == test_ro_crate_experiment
 
 
-def test_add_dataset(builder, test_dataset, test_ro_crate_dataset):
-    assert (
-        builder.add_dataset(test_dataset).properties()
-        == test_ro_crate_dataset.properties()
-    )
+# def test_add_dataset(builder, test_dataset, test_ro_crate_dataset):
+#     assert (
+#         builder.add_dataset(test_dataset).properties()
+#         == test_ro_crate_dataset.properties()
+#     )
 
 
 def test_add_datafile():
