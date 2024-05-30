@@ -45,7 +45,7 @@ def write_crate(
         for experiment in crate_contents.experiments.values()
     ]
     logger.info("adding datasets")
-    _ = [builder.add_dataset(dataset) for dataset in crate_contents.datasets]
+    _ = [builder.add_dataset(dataset) for dataset in crate_contents.datasets.values()]
     logger.info("adding datafiles")
     _ = [builder.add_datafile(datafile) for datafile in crate_contents.datafiles]
     # crate.source = None

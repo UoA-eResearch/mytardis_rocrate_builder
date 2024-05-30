@@ -497,7 +497,7 @@ class ROBuilder:
             if (self.crate.source / datafile.filepath).exists()
             else identifier
         )
-        dataset_obj: DataEntity = self.crate.dereference(datafile.Dataset.id)
+        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.id)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
         destination_path = source

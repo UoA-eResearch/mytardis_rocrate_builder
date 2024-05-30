@@ -236,7 +236,7 @@ class Dataset(MyTardisContextObject):
     schema_type: Optional[str]
 
     def __post_init__(self):
-        self.identifiers = [self.directory] + self.identifiers
+        self.identifiers = [self.directory.as_posix()] + self.identifiers
         self.schema_type = "Dataset"
 
     # mytardis_classification: str #NOT IN SCHEMA.ORG
