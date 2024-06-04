@@ -4,6 +4,7 @@
 
 import logging
 import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -262,7 +263,7 @@ class ROBuilder:
         for _, metadata_object in metadata.items():
             if metadata_object.parents is None:
                 metadata_object.parents = [str(parent_name)]
-            metadata_id = "_".join([str(parent_name), metadata_object.name])
+            metadata_id = str(uuid.uuid4())
             if existing_metadata := self._crate_contains_metadata(metadata_object):
                 existing_metadata.append_to("parents", parent_name)
             else:

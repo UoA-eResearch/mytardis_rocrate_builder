@@ -331,10 +331,7 @@ def test_rocrate_datafile(
             "datePublished": ro_date,
             "identifiers": [test_filepath],
             "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
-            "metadata": [
-                "_".join([test_filepath.as_posix(), metadata.name])
-                for metadata in test_metadata_list.values()
-            ],
+            "metadata": [],
             "dataset": crate.root_dataset.id,
         }
         | test_extra_properties,
@@ -342,29 +339,39 @@ def test_rocrate_datafile(
 
 
 def test_add_project(builder: ROBuilder, test_project, test_ro_crate_project):
-    assert builder.add_project(test_project) == test_ro_crate_project
+    added_project = builder.add_project(test_project)
+    test_ro_crate_project.properties()["metadata"] = added_project.properties()[
+        "metadata"
+    ]
+    assert added_project == test_ro_crate_project
 
 
 def test_add_experiment(
     builder: ROBuilder, test_experiment, test_ro_crate_experiment
 ) -> None:
-    assert builder.add_experiment(test_experiment) == test_ro_crate_experiment
+    added_experiment = builder.add_experiment(test_experiment)
+    test_ro_crate_experiment.properties()["metadata"] = added_experiment.properties()[
+        "metadata"
+    ]
+    assert added_experiment == test_ro_crate_experiment
 
 
 def test_add_dataset(builder: ROBuilder, test_dataset, test_ro_crate_dataset) -> None:
-    assert (
-        builder.add_dataset(test_dataset).properties()
-        == test_ro_crate_dataset.properties()
-    )
+    added_dataset = builder.add_dataset(test_dataset)
+    test_ro_crate_dataset.properties()["metadata"] = added_dataset.properties()[
+        "metadata"
+    ]
+    assert added_dataset == test_ro_crate_dataset
 
 
 def test_add_datafile(
     builder: ROBuilder, test_datafile: Datafile, test_rocrate_datafile: RODataFile
 ) -> None:
-    assert (
-        builder.add_datafile(test_datafile).properties()
-        == test_rocrate_datafile.properties()
-    )
+    added_datafile = builder.add_datafile(test_datafile)
+    test_rocrate_datafile.properties()["metadata"] = added_datafile.properties()[
+        "metadata"
+    ]
+    assert added_datafile == test_rocrate_datafile
 
 
 # def test_add_project(
