@@ -75,12 +75,27 @@ class Person:
     email: str
     affiliation: Organisation
     identifiers: List[str]
+    schema_type: List[str] = ["Person"]
 
     @property
     def id(self) -> str | int | float:
         """Retrieve first ID to act as RO-Crate ID"""
         return self.identifiers[0]
 
+
+@dataclass
+class Group:
+    """Dataclass to hold the details of a group for RO-Crate
+    
+    Attr:
+        name (str): The group name of the group
+    """
+    name: str
+    schema_type: List[str] = ["Audience", "Thing"]
+    @property
+    def id(self) -> str:
+        """Return the group name as the RO-Crate ID"""
+        return self.name
 
 @dataclass
 class BaseObject(ABC):
@@ -98,19 +113,20 @@ class MTMetadata(BaseObject):
     creates an RO-Crate JSON-LD entity matching this schema
     "@id": string - unique ID in the RO-Crate,
     "@type": string = "MyTardis-Metadata_field" - RO-Crate type,
-    "name": string - name of the meadata in MyTardis,
+    "name": string - name of the metadata in MyTardis,
     "value": string | Any - Metadata value in my tardis,
     "mt-type": string - Metadata type as recorded in MyTardis,
+    "mt-schema": string - the object schema in MyTardis that applies to this metadata record
     "sensitive": bool - Metadata ,
     "parents": List[string] - list of ids for all the parents
 
     Attr:
         experiment (str): An identifier for an experiment
     """
-
     ro_crate_id: str
     value: str
     mt_type: str
+    mt_schema: str
     sensitive: bool
     parents: List[str] | None
 
@@ -150,6 +166,8 @@ class Instrument(ContextObject):
     """Dataclass for Instruments to be assoicated with MyTardis Datasets"""
 
     location: str
+    metadata: Optional[Dict[str, MTMetadata]]
+    identifiers: Optional[List[str]]
     schema_type = ["Instrument", "Thing"]
 
 
