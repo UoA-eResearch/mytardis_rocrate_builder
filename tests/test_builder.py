@@ -372,30 +372,3 @@ def test_add_datafile(
         "metadata"
     ]
     assert added_datafile == test_rocrate_datafile
-
-
-# def test_add_project(
-#     builder: ROBuilder,
-#     test_rocrate_person: ROPerson,
-#     test_project: Project,
-# ) -> None:
-#     assert builder.add_project(test_project) == ContextEntity(
-#         builder.crate,
-#         "test-project",
-#         properties={
-#             "@type": "Project",
-#             "name": "Test Project",
-#             "description": "A sample project for test purposes",
-#             "principal_investigator": test_rocrate_person.id,
-#             "contributors": [test_rocrate_person.id, test_rocrate_person.id],
-#             "identifiers": ["test-raid", "another-id"],
-#         },
-#     )
-
-
-# def test_add_experiment(
-#     builder: ROBuilder,
-#     test_experiment: Experiment,
-#     test_rocrate_experiment: ContextEntity,
-# ) -> None:
-#     assert builder.add_experiment(test_experiment) == test_rocrate_experiment

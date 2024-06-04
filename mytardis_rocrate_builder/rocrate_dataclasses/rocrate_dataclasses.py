@@ -259,6 +259,11 @@ class Dataset(MyTardisContextObject):
         ] + self.identifiers  # type: ignore
         self.schema_type = "Dataset"
 
+    @property
+    def id(self) -> str | int | float:
+        """Retrieve first ID to act as RO-Crate ID"""
+        return self.directory.as_posix()
+
     # mytardis_classification: str #NOT IN SCHEMA.ORG
     def update_path(self, new_path: Path) -> None:
         """Update the path of a dataset chanigng it's name and identifiers
@@ -267,7 +272,6 @@ class Dataset(MyTardisContextObject):
             new_path (Path): path to update the dataset to
         """
         self.directory = new_path
-        self.identifiers = [new_path.as_posix()]
 
 
 @dataclass
@@ -287,6 +291,11 @@ class Datafile(MyTardisContextObject):
         self.identifiers: list[str | int | float] = [  # type: ignore
             self.filepath.as_posix()
         ] + self.identifiers  # type: ignore
+
+    @property
+    def id(self) -> str | int | float:
+        """Retrieve first ID to act as RO-Crate ID"""
+        return self.filepath.as_posix()
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root
