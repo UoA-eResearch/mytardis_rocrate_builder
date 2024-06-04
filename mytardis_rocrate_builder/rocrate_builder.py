@@ -517,9 +517,9 @@ class ROBuilder:
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
         properties["dataset"] = dataset_obj.id
-        destination_path = Path(dataset_obj.id) / datafile.filepath.relative_to(
-            Path(dataset_obj.id)
-        )
+        destination_path = datafile.filepath
+        if relative_dest := datafile.filepath.relative_to(Path(dataset_obj.id)):
+            destination_path = Path(dataset_obj.id) / relative_dest
         datafile_obj = self.crate.add_file(
             source=source,
             properties=properties,
