@@ -165,7 +165,7 @@ class ACL(ContextObject):
     mytardis_can_download: bool = False
     mytardis_see_sensitive: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.permission_type = "ReadPermission"
         self.schema_type = "DigitalDocumentPermission"
 
@@ -200,7 +200,7 @@ class Project(MyTardisContextObject):
     contributors: Optional[List[Person]]
     schema_type: Optional[str]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.schema_type = "Project"
 
 
@@ -217,7 +217,7 @@ class Experiment(MyTardisContextObject):
     mytardis_classification: Optional[DataClassification]  # NOT IN SCHEMA.ORG
     schema_type: Optional[str]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"
 
 
@@ -229,14 +229,16 @@ class Dataset(MyTardisContextObject):
         experiment (str): An identifier for an experiment
     """
 
-    experiments: List[str]
+    experiments: List[Experiment]
     directory: Path
     contributors: Optional[List[Person]]
     instrument: Instrument
     schema_type: Optional[str]
 
-    def __post_init__(self):
-        self.identifiers = [self.directory.as_posix()] + self.identifiers
+    def __post_init__(self) -> None:
+        self.identifiers: list[str | int | float] = [  # type: ignore
+            self.directory.as_posix()
+        ] + self.identifiers  # type: ignore
         self.schema_type = "Dataset"
 
     # mytardis_classification: str #NOT IN SCHEMA.ORG
@@ -262,9 +264,11 @@ class Datafile(MyTardisContextObject):
     dataset: Dataset
     schema_type: Optional[str]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.schema_type = "File"
-        self.identifiers = [self.filepath] + self.identifiers
+        self.identifiers: list[str | int | float] = [  # type: ignore
+            self.filepath.as_posix()
+        ] + self.identifiers  # type: ignore
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root
@@ -272,7 +276,7 @@ class Datafile(MyTardisContextObject):
         Args:
             dataset (Dataset): the dataset that is being updated to be root
         """
-        self.dataset = Path("/.")
+        self.dataset = dataset
         try:
             new_filepath = self.filepath.relative_to(dataset.directory)
         except ValueError:

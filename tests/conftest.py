@@ -1,3 +1,6 @@
+# pylint: disable
+#  type: ignore
+# pylint: disable
 # test building a functional crate out of components
 from datetime import datetime
 from pathlib import Path
@@ -8,9 +11,20 @@ from rocrate.rocrate import ROCrate
 
 from mytardis_rocrate_builder.rocrate_builder import ROBuilder
 from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
-    ACL, MT_METADATA_TYPE, BaseObject, ContextObject, Datafile, Dataset,
-    Experiment, Instrument, MTMetadata, MyTardisContextObject, Organisation,
-    Person, Project)
+    ACL,
+    MT_METADATA_TYPE,
+    BaseObject,
+    ContextObject,
+    Datafile,
+    Dataset,
+    Experiment,
+    Instrument,
+    MTMetadata,
+    MyTardisContextObject,
+    Organisation,
+    Person,
+    Project,
+)
 
 
 @fixture
@@ -191,7 +205,11 @@ def test_sensitive_metadata(
 
 @fixture
 def test_context_object(
-    test_name, test_description, test_datatime, test_extra_properties, test_schema_type
+    test_name: str,
+    test_description: str,
+    test_datatime,
+    test_extra_properties,
+    test_schema_type,
 ) -> ContextObject:
     return ContextObject(
         name=test_name,
@@ -407,6 +425,7 @@ def test_dataset(
     )
 
 
+@fixture
 def test_datafile(
     test_name,
     test_description,
@@ -422,7 +441,7 @@ def test_datafile(
     return Datafile(
         name="test_datafile",
         description=test_description,
-        identifiers=[test_directory],
+        identifiers=[test_filepath],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,

@@ -17,12 +17,12 @@ class CrateManifest:
         self,
         projcets: Optional[Dict[str, Project]] = None,
         experiments: Optional[Dict[str, Experiment]] = None,
-        datasets: Optional[List[Dataset]] = None,
+        datasets: Optional[Dict[str, Dataset]] = None,
         datafiles: Optional[List[Datafile]] = None,
     ):
         self.projcets = projcets or {}
         self.experiments = experiments or {}
-        self.datasets = datasets or []
+        self.datasets = datasets or {}
         self.datafiles = datafiles or []
 
     def add_projects(self, projcets: Dict[str, Project]) -> None:
@@ -31,8 +31,8 @@ class CrateManifest:
     def add_experiments(self, experiments: Dict[str, Experiment]) -> None:
         self.experiments = self.experiments | experiments
 
-    def add_datasets(self, datasets: List[Dataset]) -> None:
-        self.datasets.extend(datasets)
+    def add_datasets(self, datasets: Dict[str, Dataset]) -> None:
+        self.datasets = self.datasets | datasets
 
     def add_datafiles(self, datafiles: List[Datafile]) -> None:
         self.datafiles.extend(datafiles)
@@ -41,12 +41,12 @@ class CrateManifest:
 def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateManifest:
     dataset = copy.deepcopy(dataset)
     project_ids: set[str] = set()
-    out_experiments = {}
-    for experiment_id in dataset.experiments:
-        if out_experiment := in_manifest.experiments.get(experiment_id):
-            out_experiments[experiment_id] = out_experiment
-            project_ids.update(out_experiment.projects)
-    out_projects = {
+    out_experiments: Dict[str, Experiment] = {}
+    for experiment in dataset.experiments:
+        if out_experiment := in_manifest.experiments.get(str(experiment.id)):
+            out_experiments[str(experiment.id)] = out_experiment
+            project_ids.update(str(project.id) for project in out_experiment.projects)
+    out_projects: Dict[str, Project] = {
         project_id: in_manifest.projcets[project_id]
         for project_id in project_ids
         if in_manifest.projcets.get(project_id)
@@ -55,7 +55,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     out_files = [
         copy.deepcopy(datafile)
         for datafile in in_manifest.datafiles
-        if datafile.dataset == dataset.directory
+        if datafile.dataset.directory == dataset.directory
     ]
     _ = [df.update_to_root(dataset) for df in out_files]
 
@@ -63,7 +63,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     return CrateManifest(
         projcets=out_projects,
         experiments=out_experiments,
-        datasets=[dataset],
+        datasets={str(dataset.id): dataset},
         datafiles=out_files,
     )
 

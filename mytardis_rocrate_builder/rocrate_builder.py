@@ -1,3 +1,4 @@
+# pylint: disable=import-error, no-name-in-module
 """Builder class and functions for translating RO-Crate dataclasses into RO-Crate Entities
 """
 
@@ -9,17 +10,22 @@ from typing import Any, Dict, List, Optional
 
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.data_entity import DataEntity
-from rocrate.model.encryptedcontextentity import \
-    EncryptedContextEntity  # pylint: disable=import-error, no-name-in-module
+from rocrate.model.encryptedcontextentity import EncryptedContextEntity
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from .rocrate_dataclasses.rocrate_dataclasses import (ACL, ContextObject,
-                                                      Datafile, Dataset,
-                                                      Experiment, MTMetadata,
-                                                      MyTardisContextObject,
-                                                      Organisation, Person,
-                                                      Project)
+from .rocrate_dataclasses.rocrate_dataclasses import (
+    ACL,
+    ContextObject,
+    Datafile,
+    Dataset,
+    Experiment,
+    MTMetadata,
+    MyTardisContextObject,
+    Organisation,
+    Person,
+    Project,
+)
 
 MT_METADATA_SCHEMATYPE = "my_tardis_metadata"
 logger = logging.getLogger(__name__)
@@ -51,7 +57,7 @@ class ROBuilder:
 
     def _add_metadata_to_crate(
         self, metadata_obj: MTMetadata, metadata_id: str, parent_id: IdentiferType
-    ) -> ContextEntity:
+    ) -> ContextEntity | None:
         """Add a MyTardis Metadata object to the crate
 
         Args:
@@ -61,7 +67,7 @@ class ROBuilder:
 
         if metadata_obj.sensitive:
             if not self.crate.pubkey_fingerprints:
-                return
+                return None
             metadata = EncryptedContextEntity(
                 self.crate,
                 metadata_id,
@@ -404,7 +410,7 @@ class ROBuilder:
         # fits
         projects = []
         for project in experiment.projects:
-            if crate_project := self.crate.dereference("#" + project.id):
+            if crate_project := self.crate.dereference("#" + str(project.id)):
                 projects.append(crate_project.id)
             else:
                 projects.append(self.add_project(project).id)
@@ -431,10 +437,16 @@ class ROBuilder:
         """
         directory = dataset.directory
         identifier = directory.as_posix()
-        dataset.identifiers.append(identifier)
+        if identifier != dataset.id:
+            logger.warning(
+                "dataset identifiers should be relative filepaths updating %s to %s",
+                dataset.id,
+                identifier,
+            )
+            dataset.identifiers = [identifier] + dataset.identifiers  # type: ignore
         experiments = []
         for experiment in dataset.experiments:
-            if crate_experiment := self.crate.dereference("#" + experiment.id):
+            if crate_experiment := self.crate.dereference("#" + str(experiment.id)):
                 experiments.append(crate_experiment.id)
             else:
                 experiments.append(self.add_experiment(experiment).id)
@@ -483,9 +495,14 @@ class ROBuilder:
             DataEntity: the datafile RO-Crate entity that will be written to the json-LD
         """
         identifier = datafile.filepath.as_posix()
-        datafile.identifiers.append(identifier)
+        if identifier != datafile.id:
+            logger.warning(
+                "datafile identifiers should be relative filepaths updating %s to %s",
+                datafile.id,
+                identifier,
+            )
+            datafile.identifiers = [identifier] + datafile.identifiers  # type: ignore
         properties: Dict[str, Any] = {
-            "identifiers": identifier,
             "name": datafile.name,
             "description": datafile.description,
         }
@@ -494,12 +511,13 @@ class ROBuilder:
         )
         source = (
             self.crate.source / datafile.filepath
-            if (self.crate.source / datafile.filepath).exists()
+            if self.crate.source and (self.crate.source / datafile.filepath).exists()
             else identifier
         )
         dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.id)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
+        properties["dataset"] = dataset_obj.id
         destination_path = source
         datafile_obj = self.crate.add_file(
             source=source,
@@ -551,7 +569,7 @@ class ROBuilder:
         properties = {
             key: value
             for key, value in context_object.__dict__.items()
-            if value != None
+            if value is not None
         }
         if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")

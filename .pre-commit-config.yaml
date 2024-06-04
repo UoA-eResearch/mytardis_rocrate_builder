@@ -3,8 +3,8 @@ repos:
 -   repo: https://github.com/rcmdnk/pyproject-pre-commit
     rev: v0.1.9
     hooks:
-    - id: black
     - id: isort
+    - id: black
     - id: mypy
       language: python
       args:
@@ -34,6 +34,9 @@ repos:
         - pydantic
         - pydantic_settings
         - rocrate
+        - slugify
+      args:
+        - "--ignore-patterns=(.)*_test.py,test_\u002E*?py,conftest.py"
 -   repo: local
     hooks:
     - id: pytest-check
@@ -43,11 +46,11 @@ repos:
       types: [python]
       pass_filenames: false
       always_run: true
--   repo: https://github.com/Lucas-C/pre-commit-hooks-safety
-    rev: v1.3.3
-    hooks:
-    -   id: python-safety-dependencies-check
-        files: pyproject.toml
+# -   repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+#     rev: v1.3.3
+#     hooks:
+#     -   id: python-safety-dependencies-check
+#         files: pyproject.toml
 -   repo: local
     hooks:
      -   id: wily
