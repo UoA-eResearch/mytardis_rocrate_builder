@@ -35,6 +35,7 @@ repos:
         - pydantic_settings
         - rocrate
         - slugify
+        - validators
       args:
         - "--ignore-patterns=(.)*_test.py,test_\u002E*?py,conftest.py"
 -   repo: local

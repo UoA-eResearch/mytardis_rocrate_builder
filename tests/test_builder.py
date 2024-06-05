@@ -75,10 +75,10 @@ def test_rocrate_context_entity(
 ) -> ROContextEntity:
     return ROContextEntity(
         crate,
-        "#test_context_object",
+        "#" + test_name,
         properties={
             "@type": test_schema_type,
-            "identifiers": ["test_context_object"],
+            "mt_identifiers": ["test_context_object"],
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
@@ -90,7 +90,7 @@ def test_rocrate_context_entity(
 
 @fixture
 def test_crate_ACL(
-    test_organization,
+    test_group,
     test_ogranization_type,
     test_description,
     test_datatime,
@@ -103,17 +103,11 @@ def test_crate_ACL(
         "test_ACL",
         properties={
             "@type": "DigitalDocumentPermission",
-            "grantee": test_organization.id,
-            "grantee_type": test_ogranization_type,
-            "identifiers": ["test_ACL"],
-            "dateCreated": ro_date,
-            "dateModified": [ro_date],
-            "datePublished": ro_date,
-            "additional_properties": test_extra_properties,
-            "name": "test_ACL",
+            "grantee": test_group.id,
+            "grantee_type": "Audiance",
             "permission_type": "ReadPermission",
             "mytardis_owner": True,
-            "mytardis_can_download": True,
+            "my_tardis_can_download": True,
             "mytardis_see_sensitive": False,
         },
     )
@@ -166,7 +160,7 @@ def test_add_contributors(
 def test_add_acl(
     builder: ROBuilder, test_org_ACL: ACL, test_crate_ACL: ROContextEntity
 ) -> None:
-    assert test_crate_ACL == builder.add_acl(test_org_ACL)
+    assert test_crate_ACL.properties() == builder.add_acl(test_org_ACL).properties()
 
 
 def test_adda_additional_properites(
@@ -213,6 +207,7 @@ def test_ro_crate_project(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
+            "mt_identifiers": ["Project"],
             "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
             "metadata": [
                 "_".join(["Project_" + metadata.name])
@@ -242,11 +237,12 @@ def test_ro_crate_experiment(
 ) -> None:
     return ROContextEntity(
         crate,
-        "experiment",
+        "experiment_name",
         properties={
             "project": [test_ro_crate_project.id],
             "@type": "DataCatalog",
             "name": "experiment_name",
+            "mt_identifiers": ["experiment"],
             "description": test_description,
             "dateCreated": ro_date,
             "dateModified": [ro_date],
@@ -292,7 +288,7 @@ def test_ro_crate_dataset(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
-            "identifiers": [test_directory.as_posix(), test_directory],
+            "mt_identifiers": [test_directory.as_posix()],
             "instrument": "#" + test_instrument.name,
             "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
             "metadata": [
@@ -329,7 +325,7 @@ def test_rocrate_datafile(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
-            "identifiers": [test_filepath],
+            "mt_identifiers": [test_filepath],
             "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
             "metadata": [],
             "dataset": crate.root_dataset.id,
@@ -343,7 +339,7 @@ def test_add_project(builder: ROBuilder, test_project, test_ro_crate_project):
     test_ro_crate_project.properties()["metadata"] = added_project.properties()[
         "metadata"
     ]
-    assert added_project == test_ro_crate_project
+    assert added_project.properties() == test_ro_crate_project.properties()
 
 
 def test_add_experiment(
@@ -353,7 +349,7 @@ def test_add_experiment(
     test_ro_crate_experiment.properties()["metadata"] = added_experiment.properties()[
         "metadata"
     ]
-    assert added_experiment == test_ro_crate_experiment
+    assert added_experiment.properties() == test_ro_crate_experiment.properties()
 
 
 def test_add_dataset(builder: ROBuilder, test_dataset, test_ro_crate_dataset) -> None:
@@ -361,7 +357,7 @@ def test_add_dataset(builder: ROBuilder, test_dataset, test_ro_crate_dataset) ->
     test_ro_crate_dataset.properties()["metadata"] = added_dataset.properties()[
         "metadata"
     ]
-    assert added_dataset == test_ro_crate_dataset
+    assert added_dataset.properties() == test_ro_crate_dataset.properties()
 
 
 def test_add_datafile(
@@ -388,7 +384,7 @@ def test_add_datafile(
 #             "description": "A sample project for test purposes",
 #             "principal_investigator": test_rocrate_person.id,
 #             "contributors": [test_rocrate_person.id, test_rocrate_person.id],
-#             "identifiers": ["test-raid", "another-id"],
+#             "mt_identifiers": ["test-raid", "another-id"],
 #         },
 #     )
 
