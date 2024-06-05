@@ -16,6 +16,7 @@ pylint = "^3.2.2"
 pydantic = "^2.7.1"
 black = "^24.4.2"
 uuid = "^1.30"
+validators = "^0.28.3"
 
 
 [tool.poetry.group.test.dependencies]
