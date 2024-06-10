@@ -2,7 +2,7 @@
 # pylint: disable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from pytest import fixture
 from rocrate.model.contextentity import ContextEntity as ROContextEntity
@@ -18,16 +18,18 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
     Dataset,
     MTMetadata,
     Person,
+    gen_uuid_id,
+    generate_pedd_name,
 )
 
 
 @fixture
 def test_rocrate_person(
-    test_person_name, test_email, test_organization, crate: ROCrate
+    test_person_name, test_email, test_organization, crate: ROCrate, test_person: Person
 ) -> ROPerson:
     return ROPerson(
         crate=ROCrate,
-        identifier=test_person_name,
+        identifier=test_person.id,
         properties={
             "affiliation": test_organization.id,
             "name": test_person_name,
@@ -41,19 +43,21 @@ def test_rocrate_metadata(
     test_name: str,
     test_metadata_value: str,
     test_metadata_type: str,
-    test_metadata_id: str,
     crate: ROCrate,
+    test_datafile: Datafile,
+    test_mytardis_metadata: MTMetadata,
 ) -> ROContextEntity:
     return ROContextEntity(
         crate,
-        test_name,
+        test_mytardis_metadata.id,
         properties={
             "@type": MT_METADATA_SCHEMATYPE,
             "name": test_name,
             "value": test_metadata_value,
             "myTardis-type": test_metadata_type,
             "sensitive": False,
-            "parents": ["./"],
+            "mytardis-schema": "http://rocrate.testing/project/1/schema",
+            "parents": [test_datafile.id],
         },
     )
 
@@ -72,10 +76,11 @@ def test_rocrate_context_entity(
     test_schema_type,
     crate: ROCrate,
     ro_date,
+    test_context_object,
 ) -> ROContextEntity:
     return ROContextEntity(
         crate,
-        "#" + test_name,
+        test_context_object.id,
         properties={
             "@type": test_schema_type,
             "mt_identifiers": ["test_context_object"],
@@ -97,10 +102,11 @@ def test_crate_ACL(
     test_extra_properties,
     crate: ROCrate,
     ro_date,
+    test_org_ACL,
 ) -> ROContextEntity:
     return ROContextEntity(
         crate,
-        "test_ACL",
+        test_org_ACL.id,
         properties={
             "@type": "DigitalDocumentPermission",
             "grantee": test_group.id,
@@ -109,15 +115,14 @@ def test_crate_ACL(
             "mytardis_owner": True,
             "my_tardis_can_download": True,
             "mytardis_see_sensitive": False,
+            "subjectOf": ["data/testfile.txt"],
         },
     )
 
 
 def test_add_metadata(builder, test_mytardis_metadata, test_rocrate_metadata) -> None:
-    crate_metadata = builder._add_metadata_to_crate(
-        test_mytardis_metadata, metadata_id=test_mytardis_metadata.name, parent_id="./"
-    )
-    assert crate_metadata == test_rocrate_metadata
+    crate_metadata = builder._add_metadata_to_crate(test_mytardis_metadata)
+    assert crate_metadata.properties() == test_rocrate_metadata.properties()
 
 
 def test_add_principal_investigator(
@@ -189,17 +194,11 @@ def test_adda_additional_properites(
 
 @fixture
 def test_ro_crate_project(
-    test_description,
-    test_extra_properties,
-    test_acl_list,
-    test_metadata_list,
-    test_person,
-    ro_date,
-    crate,
+    test_description, test_extra_properties, test_person, ro_date, crate, test_project
 ) -> None:
     return ROContextEntity(
         crate,
-        "Project",
+        test_project.id,
         properties={
             "@type": "Project",
             "name": "Project_name",
@@ -208,11 +207,6 @@ def test_ro_crate_project(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": ["Project"],
-            "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
-            "metadata": [
-                "_".join(["Project_" + metadata.name])
-                for metadata in test_metadata_list.values()
-            ],
             "principal_investigator": "#" + test_person.id,
             "contributors": ["#" + test_person.id],
         }
@@ -226,18 +220,16 @@ def test_ro_crate_experiment(
     test_description,
     test_datatime,
     test_extra_properties,
-    test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_person,
     test_ethics_policy,
     ro_date,
     crate,
     test_ro_crate_project,
+    test_experiment,
 ) -> None:
     return ROContextEntity(
         crate,
-        "experiment_name",
+        test_experiment.id,
         properties={
             "project": [test_ro_crate_project.id],
             "@type": "DataCatalog",
@@ -247,11 +239,6 @@ def test_ro_crate_experiment(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
-            "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
-            "metadata": [
-                "_".join(["experiment_" + metadata.name])
-                for metadata in test_metadata_list.values()
-            ],
         }
         | test_extra_properties,
     )
@@ -264,9 +251,6 @@ def test_ro_crate_dataset(
     test_description,
     test_datatime,
     test_extra_properties,
-    test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_person,
     test_ethics_policy,
     ro_date,
@@ -289,12 +273,7 @@ def test_ro_crate_dataset(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_directory.as_posix()],
-            "instrument": "#" + test_instrument.name,
-            "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
-            "metadata": [
-                "_".join([test_directory.as_posix(), metadata.name])
-                for metadata in test_metadata_list.values()
-            ],
+            "instrument": "#" + test_instrument.id,
         }
         | test_extra_properties,
     )
@@ -307,8 +286,6 @@ def test_rocrate_datafile(
     test_description: str,
     test_directory: str,
     ro_date: datetime,
-    test_acl_list: List[ACL],
-    test_metadata_list: Dict[str, MTMetadata],
     test_dataset: Dataset,
     test_extra_properties: Dict[str, Any],
 ) -> RODataFile:
@@ -326,9 +303,8 @@ def test_rocrate_datafile(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_filepath],
-            "hasDigitalDocumentPermission": ["#" + acl.id for acl in test_acl_list],
-            "metadata": [],
             "dataset": crate.root_dataset.id,
+            "version": 1.0,
         }
         | test_extra_properties,
     )
@@ -336,9 +312,6 @@ def test_rocrate_datafile(
 
 def test_add_project(builder: ROBuilder, test_project, test_ro_crate_project):
     added_project = builder.add_project(test_project)
-    test_ro_crate_project.properties()["metadata"] = added_project.properties()[
-        "metadata"
-    ]
     assert added_project.properties() == test_ro_crate_project.properties()
 
 
@@ -346,17 +319,11 @@ def test_add_experiment(
     builder: ROBuilder, test_experiment, test_ro_crate_experiment
 ) -> None:
     added_experiment = builder.add_experiment(test_experiment)
-    test_ro_crate_experiment.properties()["metadata"] = added_experiment.properties()[
-        "metadata"
-    ]
     assert added_experiment.properties() == test_ro_crate_experiment.properties()
 
 
 def test_add_dataset(builder: ROBuilder, test_dataset, test_ro_crate_dataset) -> None:
     added_dataset = builder.add_dataset(test_dataset)
-    test_ro_crate_dataset.properties()["metadata"] = added_dataset.properties()[
-        "metadata"
-    ]
     assert added_dataset.properties() == test_ro_crate_dataset.properties()
 
 
@@ -364,34 +331,4 @@ def test_add_datafile(
     builder: ROBuilder, test_datafile: Datafile, test_rocrate_datafile: RODataFile
 ) -> None:
     added_datafile = builder.add_datafile(test_datafile)
-    test_rocrate_datafile.properties()["metadata"] = added_datafile.properties()[
-        "metadata"
-    ]
     assert added_datafile == test_rocrate_datafile
-
-
-# def test_add_project(
-#     builder: ROBuilder,
-#     test_rocrate_person: ROPerson,
-#     test_project: Project,
-# ) -> None:
-#     assert builder.add_project(test_project) == ContextEntity(
-#         builder.crate,
-#         "test-project",
-#         properties={
-#             "@type": "Project",
-#             "name": "Test Project",
-#             "description": "A sample project for test purposes",
-#             "principal_investigator": test_rocrate_person.id,
-#             "contributors": [test_rocrate_person.id, test_rocrate_person.id],
-#             "mt_identifiers": ["test-raid", "another-id"],
-#         },
-#     )
-
-
-# def test_add_experiment(
-#     builder: ROBuilder,
-#     test_experiment: Experiment,
-#     test_rocrate_experiment: ContextEntity,
-# ) -> None:
-#     assert builder.add_experiment(test_experiment) == test_rocrate_experiment

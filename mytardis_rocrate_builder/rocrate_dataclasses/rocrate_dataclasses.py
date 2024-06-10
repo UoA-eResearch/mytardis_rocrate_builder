@@ -1,14 +1,18 @@
 """Definition of RO-Crate dataclasses"""
 
+import uuid
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from pydantic import AfterValidator, PlainSerializer, WithJsonSchema
+from slugify import slugify
 from validators import url
+
+from .. import MYTARDIS_NAMESPACE_UUID
 
 MT_METADATA_TYPE = {
     1: "NUMERIC",
@@ -72,10 +76,13 @@ class Organisation:
     url: Optional[Url] = None
     research_org: bool = True
 
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+
     @property
     def id(self) -> str | int | float:
         """Retrieve first ID to act as RO-Crate ID"""
-        return self.mt_identifiers[0]
+        return self.identifier
 
 
 @dataclass(kw_only=True)
@@ -100,10 +107,13 @@ class Person:
     schema_type: str = "Person"
     full_name: Optional[str] = None
 
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+
     @property
     def id(self) -> str | int | float:
         """Retrieve name (usually upi) RO-Crate ID"""
-        return self.name
+        return self.identifier
 
 
 @dataclass(kw_only=True)
@@ -117,6 +127,9 @@ class Group:
     name: str
     schema_type: str = "Audience"
 
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+
     @property
     def id(self) -> str:
         """Return the group name as the RO-Crate ID"""
@@ -127,12 +140,175 @@ class Group:
 class BaseObject(ABC):
     """Abstract Most basic object that can be turned into an RO-Crate entity"""
 
-    identifier: str | int | float
+    identifier: str | int | float = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.identifier = str(uuid.uuid4())
 
     @property
     def id(self) -> str | int | float:
         """syntatic sugar for id used in RO-Crate"""
         return self.identifier
+
+
+@dataclass(kw_only=True)
+class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
+    """Abstract dataclass for an object for RO-Crate
+
+    Attr:
+        name (str): The name of the object
+        description (str): A longer form description of the object
+        mt_identifiers (List[str]):
+            A list of mt_identifiers for the object
+        date_created (Optional[datetime]) : when was the object created
+        date_modified (Optional[List[datetime]]) : when was the object last changed
+        additional_properties Optional[Dict[str, Any]] : metadata not in schema
+        schema_type (Optional[str | list[str]]) :Schema.org types or type
+    """
+
+    name: str
+    description: str
+    mt_identifiers: List[str | int | float]
+    date_created: Optional[datetime] = None
+    date_modified: Optional[List[datetime]] = None
+    additional_properties: Optional[Dict[str, Any]] = None
+    schema_type: Optional[str | list[str]] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(self.name)
+        self.schema_type = "Thing"
+
+
+@dataclass(kw_only=True)
+class Instrument(ContextObject):
+    """Dataclass for Instruments to be assoicated with MyTardis Datasets"""
+
+    location: str
+    schema_type = ["Instrument", "Thing"]
+
+
+@dataclass(kw_only=True)
+class MyTardisContextObject(ContextObject):
+    """Context objects containing MyTardis specific properties.
+    These properties are not used by other RO-Crate endpoints.
+
+    Attr:
+        acls (List[ACL]): access level controls associated with the object
+        metadata (Dict[str: MTMetadata]): MyTardis metadata
+        associated with the object
+    """
+
+
+@dataclass(kw_only=True)
+class Project(MyTardisContextObject):
+    """Concrete Project class for RO-Crate - inherits from ContextObject
+    https://schema.org/Project
+
+    Attr:
+        principal_investigator (Person): The project lead
+        contributors (List[Person]): A list of people associated with the project who are not
+            the principal investigator
+    """
+
+    principal_investigator: Person  # NOT IN SCHEMA.ORG
+    contributors: Optional[List[Person]] = None
+
+    def __post_init__(self) -> None:
+        self.schema_type = "Project"
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))
+        )
+
+
+@dataclass(kw_only=True)
+class Experiment(MyTardisContextObject):
+    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from ContextObject
+    https://schema.org/DataCatalog
+    Attr:
+        project (str): An identifier for a project
+    """
+
+    projects: List[Project]  # NOT IN SCHEMA.ORG
+    contributors: Optional[List[Person]] = None
+    mytardis_classification: Optional[DataClassification] = None  # NOT IN SCHEMA.ORG
+
+    def __post_init__(self) -> None:
+        self.schema_type = "DataCatalog"
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))
+        )
+
+
+@dataclass(kw_only=True)
+class Dataset(MyTardisContextObject):
+    """Concrete Dataset class for RO-crate - inherits from ContextObject
+
+    Attr:
+        experiment (str): An identifier for an experiment
+    """
+
+    experiments: List[Experiment]
+    directory: Path
+    instrument: Instrument
+    contributors: Optional[List[Person]] = None
+
+    def __post_init__(self) -> None:
+        self.schema_type = "Dataset"
+        self.identifier = self.directory.as_posix()
+
+
+@dataclass(kw_only=True)
+class Datafile(MyTardisContextObject):
+    """Concrete datafile class for RO-crate - inherits from ContextObject
+
+    Attr:
+        experiment (str): An identifier for an experiment
+    """
+
+    filepath: Path
+    dataset: Dataset
+    version: float = 1.0
+    storage_box: Optional[Url] = None
+
+    def __post_init__(self) -> None:
+        self.schema_type = ["File", "MediaObject"]
+        self.identifier = self.filepath.as_posix()
+
+    def update_to_root(self, dataset: Dataset) -> Path:
+        """Update a datafile that is a child of a dataset so that dataset is now the root
+
+        Args:
+            dataset (Dataset): the dataset that is being updated to be root
+        """
+        self.dataset = dataset
+        try:
+            new_filepath = self.filepath.relative_to(dataset.directory)
+        except ValueError:
+            new_filepath = self.filepath
+        self.filepath = new_filepath
+        return self.filepath
+
+
+@dataclass(kw_only=True)
+class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
+    """Acess level controls in MyTardis provided to people and groups
+    based on https://schema.org/DigitalDocumentPermission
+    grantee - the user or group granted access"""
+
+    name: str
+    grantee: Person | Group
+    grantee_type: Literal["Audiance", "Person"]
+    parent: MyTardisContextObject
+    mytardis_owner: bool = False
+    mytardis_can_download: bool = False
+    mytardis_see_sensitive: bool = False
+
+    def __post_init__(self) -> None:
+        self.permission_type = "ReadPermission"
+        self.schema_type = "DigitalDocumentPermission"
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self.parent), self.name)
+        )
 
 
 @dataclass(kw_only=True)
@@ -160,159 +336,65 @@ class MTMetadata(BaseObject):
     mt_type: str
     mt_schema: Url
     sensitive: bool
-    parents: List[str] | None
-
-
-@dataclass(kw_only=True)
-class ContextObject(BaseObject):
-    """Abstract dataclass for an object for RO-Crate
-
-    Attr:
-        name (str): The name of the object
-        description (str): A longer form description of the object
-        mt_identifiers (List[str]):
-            A list of mt_identifiers for the object
-            the first of which will be used as a UUID in the RO-Crate
-        date_created (Optional[datetime]) : when was the object created
-        date_modified (Optional[List[datetime]]) : when was the object last changed
-        metadata (Optional[Dict[str, MTMetadata]])  a list of the mytardis metadata elements
-        additional_properties Optional[Dict[str, Any]] : metadata not in schema
-        schema_type (Optional[str | list[str]]) :Schema.org types or type
-    """
-
-    name: str
-    description: str
-    mt_identifiers: List[str | int | float]
-    date_created: Optional[datetime] = None
-    date_modified: Optional[List[datetime]] = None
-    additional_properties: Optional[Dict[str, Any]] = None
-    schema_type: Optional[str | list[str]] = None
-
-
-@dataclass(kw_only=True)
-class Instrument(ContextObject):
-    """Dataclass for Instruments to be assoicated with MyTardis Datasets"""
-
-    location: str
-    schema_type = ["Instrument", "Thing"]
-    metadata: Optional[Dict[str, MTMetadata]] = None
-
-
-@dataclass(kw_only=True)
-class ACL(BaseObject):
-    """Acess level controls in MyTardis provided to people and groups
-    based on https://schema.org/DigitalDocumentPermission
-    grantee - the user or group granted access"""
-
-    grantee: Person | Group
-    grantee_type: Literal["Audiance", "Person"]
-    mytardis_owner: bool = False
-    mytardis_can_download: bool = False
-    mytardis_see_sensitive: bool = False
+    parent: MyTardisContextObject
 
     def __post_init__(self) -> None:
-        self.permission_type = "ReadPermission"
-        self.schema_type = "DigitalDocumentPermission"
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self.parent), self.name)
+        )
 
 
-@dataclass(kw_only=True)
-class MyTardisContextObject(ContextObject):
-    """Context objects containing MyTardis specific properties.
-    These properties are not used by other RO-Crate endpoints.
+def gen_uuid_id(  #  type: ignore
+    *args, namespace: uuid.UUID = MYTARDIS_NAMESPACE_UUID
+) -> str:
+    """Generate a UUID for a myTarids object
+    Args:
+        namespace (uuid.UUID, optional): the namespace UUID for the base of this UUID.
+            Defaults to MYTARDIS_NAMESPACE_UUID.
+        args* (*Any): a collection of other values to base the UUID on the strings of
 
-    Attr:
-        acls (List[ACL]): access level controls associated with the object
-        metadata (Dict[str: MTMetadata]): MyTardis metadata
-        associated with the object
+    Raises:
+        TypeError: if a non UUID value is passed to the namespace UUID
+
+    Returns:
+        str: a uuid5 based on all inputs and namespaces
     """
+    if not isinstance(namespace, uuid.UUID):
+        raise TypeError("Namespace needs to be a UUID object.")
+    if not args:
+        return str(namespace)
+    uuid_str = slugify(" ".join(map(str, args)))
+    uuid_obj = uuid.uuid5(namespace, uuid_str)
+    return str(uuid_obj)
 
-    acls: Optional[List[ACL]] = None
-    metadata: Optional[Dict[str, MTMetadata]] = None
 
+def generate_pedd_name(mytardis_object: MyTardisContextObject) -> str:
+    """Generate the Project, Experiment, Dataset, Datafile unique name
+    for my Tardis uuid assignment
 
-@dataclass(kw_only=True)
-class Project(MyTardisContextObject):
-    """Concrete Project class for RO-Crate - inherits from ContextObject
-    https://schema.org/Project
+    Args:
+        parent (MyTardisContextObject): the parent obejct of the entity being assinged this UUID
 
-    Attr:
-        principal_investigator (Person): The project lead
-        contributors (List[Person]): A list of people associated with the project who are not
-            the principal investigator
+    Returns:
+        str: the PEDD name for uuid assignment
     """
-
-    principal_investigator: Person  # NOT IN SCHEMA.ORG
-    contributors: Optional[List[Person]] = None
-    schema_type: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        self.schema_type = "Project"
-
-
-@dataclass(kw_only=True)
-class Experiment(MyTardisContextObject):
-    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from ContextObject
-    https://schema.org/DataCatalog
-    Attr:
-        project (str): An identifier for a project
-    """
-
-    projects: List[Project]  # NOT IN SCHEMA.ORG
-    contributors: Optional[List[Person]] = None
-    mytardis_classification: Optional[DataClassification] = None  # NOT IN SCHEMA.ORG
-    schema_type: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        self.schema_type = "DataCatalog"
-
-
-@dataclass(kw_only=True)
-class Dataset(MyTardisContextObject):
-    """Concrete Dataset class for RO-crate - inherits from ContextObject
-
-    Attr:
-        experiment (str): An identifier for an experiment
-    """
-
-    experiments: List[Experiment]
-    directory: Path
-    instrument: Instrument
-    contributors: Optional[List[Person]] = None
-    schema_type: Optional[str] = None
-
-    def __post_init__(self) -> None:
-        self.schema_type = "Dataset"
-
-
-@dataclass(kw_only=True)
-class Datafile(MyTardisContextObject):
-    """Concrete datafile class for RO-crate - inherits from ContextObject
-
-    Attr:
-        experiment (str): An identifier for an experiment
-    """
-
-    filepath: Path
-    dataset: Dataset
-    schema_type: Optional[str] = None
-    storage_box: Optional[Url] = None
-
-    def __post_init__(self) -> None:
-        self.schema_type = "File"
-        self.mt_identifiers: list[str | int | float] = [  # type: ignore
-            self.filepath.as_posix()
-        ] + self.mt_identifiers  # type: ignore
-
-    def update_to_root(self, dataset: Dataset) -> Path:
-        """Update a datafile that is a child of a dataset so that dataset is now the root
-
-        Args:
-            dataset (Dataset): the dataset that is being updated to be root
-        """
-        self.dataset = dataset
-        try:
-            new_filepath = self.filepath.relative_to(dataset.directory)
-        except ValueError:
-            new_filepath = self.filepath
-        self.filepath = new_filepath
-        return self.filepath
+    obj_name: str = ""
+    match mytardis_object:
+        case Project():
+            obj_name = mytardis_object.name
+        case Experiment():
+            obj_name = mytardis_object.name
+        case Dataset():
+            obj_name = f"{mytardis_object.directory.as_posix()}-{mytardis_object.name}"
+        case Datafile():
+            obj_name = "".join(
+                [
+                    f"{mytardis_object.filepath.as_posix()}-",
+                    f"{mytardis_object.dataset.directory.as_posix()}-",
+                    f"{mytardis_object.dataset.name}-",
+                    f"{mytardis_object.version}",
+                ]
+            )
+        case _:
+            obj_name = mytardis_object.name
+    return slugify(obj_name)

@@ -7,7 +7,6 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-slugify = "^0.0.1"
 ro-crate-py = {git = "https://github.com/UoA-eResearch/ro-crate-py.git",  branch = "encrypted-metadata"}
 bagit = "^1.8.1"
 types-python-slugify = "^8.0.2.20240310"
@@ -17,6 +16,7 @@ pydantic = "^2.7.1"
 black = "^24.4.2"
 uuid = "^1.30"
 validators = "^0.28.3"
+python-slugify = "^8.0.4"
 
 
 [tool.poetry.group.test.dependencies]
