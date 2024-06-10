@@ -64,10 +64,11 @@ class Organisation:
     """Dataclass to hold the details of an organisation for RO-Crate
 
     Attr:
-        identifier (List[str]): A list of mt_identifiers that can be used to uniquely
+        mt_identifiers (List[str]): A list of mt_identifiers that can be used to uniquely
             identify the organisation - typically RoR
         name (str): The name of the organisation
         url (str): An optional URL for the organisation - default None
+        research_org (bool): is this orgranization a research organization
     """
 
     mt_identifiers: List[str]
@@ -77,11 +78,11 @@ class Organisation:
     research_org: bool = True
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.mt_identifiers)
 
     @property
     def id(self) -> str | int | float:
-        """Retrieve first ID to act as RO-Crate ID"""
+        """Retrieve  uuid base on org name to act as RO-Crate ID"""
         return self.identifier
 
 
@@ -98,6 +99,8 @@ class Person:
         email (str): A contact email address for the person named
         affilitation (Organisation): An organisation that is the primary affiliation for
             the person
+        schema_type (str): the schema.org type of this entity
+        full name: the first and last name of the person
     """
 
     name: str
@@ -108,7 +111,7 @@ class Person:
     full_name: Optional[str] = None
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.name)
 
     @property
     def id(self) -> str | int | float:
@@ -133,12 +136,17 @@ class Group:
     @property
     def id(self) -> str:
         """Return the group name as the RO-Crate ID"""
-        return self.name
+        return self.identifier
 
 
 @dataclass(kw_only=True)
 class BaseObject(ABC):
-    """Abstract Most basic object that can be turned into an RO-Crate entity"""
+    """Abstract Most basic object that can be turned into an RO-Crate entity
+
+    Attr:
+        identifier (str): The identifier that will be used in the RO-Crate
+            Assigned based on UUID generation
+    """
 
     identifier: str | int | float = field(init=False)
 
@@ -164,6 +172,7 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
         date_modified (Optional[List[datetime]]) : when was the object last changed
         additional_properties Optional[Dict[str, Any]] : metadata not in schema
         schema_type (Optional[str | list[str]]) :Schema.org types or type
+            Assigned based on dataclass
     """
 
     name: str
@@ -193,10 +202,17 @@ class MyTardisContextObject(ContextObject):
     These properties are not used by other RO-Crate endpoints.
 
     Attr:
-        acls (List[ACL]): access level controls associated with the object
-        metadata (Dict[str: MTMetadata]): MyTardis metadata
-        associated with the object
+        mytardis_classification (DataClassification): the classification in MyTardis
+            Default = Sensitive
+
     """
+
+    mytardis_classification: Optional[DataClassification] = (
+        DataClassification.SENSITIVE
+    )  # NOT IN SCHEMA.ORG
+
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
 
 
 @dataclass(kw_only=True)
@@ -222,15 +238,15 @@ class Project(MyTardisContextObject):
 
 @dataclass(kw_only=True)
 class Experiment(MyTardisContextObject):
-    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from ContextObject
+    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from yTardisContextObject
     https://schema.org/DataCatalog
     Attr:
-        project (str): An identifier for a project
+        projects (List[Project]): the projects linked with this experiment
+        contributors (List[Person]): A list of people associated with this experiment
     """
 
     projects: List[Project]  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]] = None
-    mytardis_classification: Optional[DataClassification] = None  # NOT IN SCHEMA.ORG
 
     def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"
@@ -241,10 +257,12 @@ class Experiment(MyTardisContextObject):
 
 @dataclass(kw_only=True)
 class Dataset(MyTardisContextObject):
-    """Concrete Dataset class for RO-crate - inherits from ContextObject
-
+    """Concrete Dataset class for RO-crate - inherits from MyTardisContextObject
     Attr:
-        experiment (str): An identifier for an experiment
+    experiments (List[Experiment]): the experiments linked with this dataset
+    directory (Path): the local path of the directory of this dataset
+    instrument (Instrument): the instrument associated with this dataset
+    contributors (List[Person]): A list of people associated with this dataset
     """
 
     experiments: List[Experiment]
@@ -259,15 +277,17 @@ class Dataset(MyTardisContextObject):
 
 @dataclass(kw_only=True)
 class Datafile(MyTardisContextObject):
-    """Concrete datafile class for RO-crate - inherits from ContextObject
-
+    """Concrete datafile class for RO-crate - inherits from MyTaridsContextObject
     Attr:
-        experiment (str): An identifier for an experiment
+    filepath (str): the relative path to this file
+    dataset (Dataset): the Dataset parent of this datafile
+    version (int): the version number of this file
+    storage_box (Optional[URL]): The MyTardis storage box this file resides in
     """
 
     filepath: Path
     dataset: Dataset
-    version: float = 1.0
+    version: int = 1
     storage_box: Optional[Url] = None
 
     def __post_init__(self) -> None:
@@ -293,7 +313,17 @@ class Datafile(MyTardisContextObject):
 class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
     """Acess level controls in MyTardis provided to people and groups
     based on https://schema.org/DigitalDocumentPermission
-    grantee - the user or group granted access"""
+    grantee - the user or group granted access
+
+        Attr:
+        name (str): A name given to this ACL (user defined)
+        Grantee (Person | Group): Grantee the person or group this ACL belongs to
+        parent (MyTardisContextObject): the object this ACL applies to
+        mytardis_owner (bool): does this ACL grant ownership
+        mytardis_can_download (bool): does this ACL grant download rights
+        mytardis_see_sensitive (bool): does this ACL grant rigthts to see sensitive metadata
+
+    """
 
     name: str
     grantee: Person | Group
@@ -317,23 +347,29 @@ class MTMetadata(BaseObject):
     Contains all information to store or recreate MyTardis metadata.
     Used as backup and recovery option.
 
-    creates an RO-Crate JSON-LD entity matching this schema
-    "@id": string - unique ID in the RO-Crate,
-    "@type": string = "MyTardis-Metadata_field" - RO-Crate type,
-    "name": string - name of the metadata in MyTardis,
-    "value": string | Any - Metadata value in my tardis,
-    "mt-type": string - Metadata type as recorded in MyTardis,
-    "mt-schema": url - the object schema in MyTardis that applies to this metadata record
-    "sensitive": bool - Metadata ,
-    "parents": List[string] - list of ids for all the parents
-
     Attr:
-        experiment (str): An identifier for an experiment
+        name (str): what is the name of this metadata in mytardis
+        value (str): what is the value held in this metadata (As a string)
+        mt_type (MT_METADATA_TYPE): what is the type of this data in MyTardis
+        mt_schema (URL): what MyTardis schema is this metadata linked to
+        sensitive (bool): is this data sensitive
+            should it be written as encrypted
+        parent (MyTardisContextObject): the object this Metadata is linked to
     """
 
     name: str
     value: str
-    mt_type: str
+    mt_type: Literal[
+        "NUMERIC",
+        "STRING",
+        "URL",
+        "LINK",
+        "FILENAME",
+        "DATETIME",
+        "LONGSTRING",
+        "JSON",
+        "STRING",
+    ]
     mt_schema: Url
     sensitive: bool
     parent: MyTardisContextObject
