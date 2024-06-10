@@ -41,6 +41,12 @@ class CrateManifest:
     def add_datafiles(self, datafiles: List[Datafile]) -> None:
         self.datafiles.extend(datafiles)
 
+    def add_metadata(self, metadata: List[MTMetadata]) -> None:
+        self.metadata.extend(metadata)
+
+    def add_acls(self, acls: List[ACL]) -> None:
+        self.acls.extend(acls)
+
 
 def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateManifest:
     dataset = copy.deepcopy(dataset)
@@ -61,14 +67,37 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
         for datafile in in_manifest.datafiles
         if datafile.dataset.directory == dataset.directory
     ]
+    out_file_ids = (outfile.id for outfile in out_files)
+    outmetadata = []
+    for metadata in in_manifest.metadata:
+        parent_id = metadata.parent.id
+        if (
+            parent_id == dataset.id
+            or parent_id in out_experiments
+            or parent_id in out_projects
+            or parent_id in out_file_ids
+        ):
+            outmetadata.append(metadata)
+    outacls = []
+    for acl in in_manifest.acls:
+        parent_id = acl.parent.id
+        if (
+            parent_id == dataset.id
+            or parent_id in out_experiments
+            or parent_id in out_projects
+            or parent_id in out_file_ids
+        ):
+            outacls.append(acl)
+
     _ = [df.update_to_root(dataset) for df in out_files]
 
-    # dataset.update_path(Path("./"))
     return CrateManifest(
         projcets=out_projects,
         experiments=out_experiments,
         datasets={str(dataset.id): dataset},
         datafiles=out_files,
+        metadata=outmetadata,
+        acls=outacls,
     )
 
 
