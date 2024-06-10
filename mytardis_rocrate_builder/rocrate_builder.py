@@ -4,7 +4,6 @@
 
 import logging
 import re
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -15,12 +14,13 @@ from rocrate.model.encryptedcontextentity import EncryptedContextEntity
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from .rocrate_dataclasses.rocrate_dataclasses import (
+from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     ACL,
     ContextObject,
     Datafile,
     Dataset,
     Experiment,
+    Instrument,
     MTMetadata,
     MyTardisContextObject,
     Organisation,
@@ -56,69 +56,24 @@ class ROBuilder:
         self.crate = crate
         self.flatten_additional_properties = flatten_additional_properties
 
-    def _add_metadata_to_crate(
-        self, metadata_obj: MTMetadata, metadata_id: str, parent_id: IdentiferType
-    ) -> ContextEntity | None:
-        """Add a MyTardis Metadata object to the crate
+    def add_acl(self, acl: ACL) -> ContextEntity | None:
+        """Add an ACL to the RO-Crate.
+         updating relationships between ACL and parents
 
         Args:
-            metadata_obj (MTMetadata): the MyTardis Metadata object
-            metadata_id (str): the id used to identify the entity in the crate
-        """
-
-        if metadata_obj.sensitive:
-            if not self.crate.pubkey_fingerprints:
-                return None
-            metadata = EncryptedContextEntity(
-                self.crate,
-                metadata_id,
-                properties={
-                    "@type": MT_METADATA_SCHEMATYPE,
-                    "name": metadata_obj.name,
-                    "value": metadata_obj.value,
-                    "myTardis-type": metadata_obj.mt_type,
-                    "sensitive": metadata_obj.sensitive,
-                    "parents": [parent_id],
-                },
-                pubkey_fingerprints=[],
-            )
-        else:
-            metadata = ContextEntity(
-                self.crate,
-                metadata_id,
-                properties={
-                    "@type": MT_METADATA_SCHEMATYPE,
-                    "name": metadata_obj.name,
-                    "value": metadata_obj.value,
-                    "myTardis-type": metadata_obj.mt_type,
-                    "sensitive": metadata_obj.sensitive,
-                    "parents": [parent_id],
-                },
-            )
-
-        return self.crate.add(metadata)
-
-    def _add_object_acls(
-        self, properties: JsonProperties, acls: List[ACL], partent_id: IdentiferType
-    ) -> JsonProperties:
-        """add access level controls to an object
-
-        Args:
-            properties (Dict[str, str | List[str] | Dict[str,str]]):
-                the properties dict of the parent object
-            acls (List[ACL]): lsit of access level control objects
-            partent_id (str): the id of the parent object
+            acl (ACL): the ACL to be added
 
         Returns:
-            JsonProperties: the properties updated with the ACLs
+            ContextEntity | None: the ACL as a context entity
         """
-        has_digital_permission = []
-        for acl in acls:
-            acl_entity = self.crate.dereference(acl.id) or self.add_acl(acl)
-            acl_entity.append_to("subjectOf", partent_id)
-            has_digital_permission.append(acl_entity.id)
-        properties["hasDigitalDocumentPermission"] = has_digital_permission
-        return properties
+        acl_entity = self.crate.dereference(acl.id) or self._add_acl_to_crate(acl)
+        parent_obj = self.crate.dereference(acl.parent.id) or self.add_my_tardis_obj(
+            acl.parent
+        )
+        # Create person or group the ACL refers to here if it does not already exist
+        acl_entity.append_to("subjectOf", parent_obj.id)
+        parent_obj.append_to("hasDigitalDocumentPermission", acl.id)
+        return acl_entity
 
     def __add_organisation(self, organisation: Organisation) -> None:
         """Read in an Organisation object and create a Organization entity in the crate
@@ -233,6 +188,47 @@ class ROBuilder:
         self.crate.add(rocrate_obj)
         return rocrate_obj
 
+    def _add_metadata_to_crate(self, metadata_obj: MTMetadata) -> ContextEntity | None:
+        """Add a MyTardis Metadata object to the crate
+
+        Args:
+            metadata_obj (MTMetadata): the MyTardis Metadata object
+        """
+
+        if metadata_obj.sensitive:
+            if not self.crate.pubkey_fingerprints:
+                return None
+            metadata = EncryptedContextEntity(
+                self.crate,
+                metadata_obj.id,
+                properties={
+                    "@type": MT_METADATA_SCHEMATYPE,
+                    "name": metadata_obj.name,
+                    "value": metadata_obj.value,
+                    "myTardis-type": metadata_obj.mt_type,
+                    "sensitive": metadata_obj.sensitive,
+                    "parents": [metadata_obj.parent.id],
+                    "mytardis-schema": metadata_obj.mt_schema,
+                },
+                pubkey_fingerprints=[],
+            )
+        else:
+            metadata = ContextEntity(
+                self.crate,
+                metadata_obj.id,
+                properties={
+                    "@type": MT_METADATA_SCHEMATYPE,
+                    "name": metadata_obj.name,
+                    "value": metadata_obj.value,
+                    "myTardis-type": metadata_obj.mt_type,
+                    "sensitive": metadata_obj.sensitive,
+                    "parents": [metadata_obj.parent.id],
+                    "mytardis-schema": metadata_obj.mt_schema,
+                },
+            )
+
+        return self.crate.add(metadata)
+
     def _crate_contains_metadata(self, metadata: MTMetadata) -> ContextEntity | None:
         if crate_metadata := self.crate.dereference(metadata.id):
             if metadata.name == crate_metadata.get(
@@ -241,35 +237,30 @@ class ROBuilder:
                 return crate_metadata
         return None
 
-    def _add_metadata(
+    def add_metadata(
         self,
-        parent_name: IdentiferType,
-        properties: JsonProperties,
-        metadata: Dict[str, MTMetadata],
-    ) -> JsonProperties:
-        """Add generic metadata to the properties dictionary for a RO-Crate obj
+        metadata: MTMetadata,
+    ) -> ContextEntity | None:
+        """Add a metadata object to the RO-Crate
+        generates parents and adds associated metadata if present
 
         Args:
-            properties (JsonProperties): The properties to be
-                added to the RO-Crate
-            metadata (JsonProperties): A dictionary of metadata
-                to be added to the RO-Crate obj
-
+            metadata (MTMetadata): the MyTardis metadata to add to the RO-Crate
         Returns:
-            Dict[str, str|List[str]|Dict[str, Any]]: The updated properties dictionary
+            ContextEntity | None: the metadata as an RO-Crate entity
         """
-        properties["metadata"] = []
-        for _, metadata_object in metadata.items():
-            if metadata_object.parents is None:
-                metadata_object.parents = [str(parent_name)]
-            metadata_id = str(uuid.uuid4())
-            if existing_metadata := self._crate_contains_metadata(metadata_object):
-                existing_metadata.append_to("parents", parent_name)
-            else:
-                self._add_metadata_to_crate(metadata_object, metadata_id, parent_name)
-            if metadata_id not in properties["metadata"]:  # pylint: disable=C0201
-                properties["metadata"].append(metadata_id)  # type: ignore
-        return properties
+        metadata_obj = self._crate_contains_metadata(
+            metadata
+        ) or self._add_metadata_to_crate(metadata)
+        if not metadata_obj:
+            return None
+        parent_obj = self.crate.dereference(
+            metadata.parent.id
+        ) or self.add_my_tardis_obj(metadata.parent)
+        metadata_obj.append_to("parents", parent_obj.id)
+        parent_obj.append_to("metadata", metadata_obj.id)
+
+        return metadata_obj
 
     def _add_additional_properties(
         self,
@@ -327,14 +318,6 @@ class ROBuilder:
     def _update_properties(
         self, data_object: MyTardisContextObject, properties: JsonProperties
     ) -> JsonProperties:
-        if data_object.metadata:
-            properties = self._add_metadata(
-                data_object.id, properties, data_object.metadata
-            )
-        if data_object.acls:
-            properties = self._add_object_acls(
-                properties, data_object.acls, data_object.id
-            )
         if data_object.date_created:
             properties = self._add_dates(
                 properties,
@@ -499,6 +482,7 @@ class ROBuilder:
         properties: Dict[str, Any] = {
             "name": datafile.name,
             "description": datafile.description,
+            "version": datafile.version,
         }
         properties = self._update_properties(
             data_object=datafile, properties=properties
@@ -524,7 +508,7 @@ class ROBuilder:
         dataset_obj.append_to("hasPart", datafile_obj)
         return self._add_mt_identifiers(datafile, datafile_obj)
 
-    def add_acl(self, acl: ACL) -> DataEntity:
+    def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
         """Add an individual ACL to the RO-Crate
 
         Args:
@@ -595,3 +579,27 @@ class ROBuilder:
             ContextEntity(self.crate, identifier, properties=properties)
         )
         return context_entitiy
+
+    def add_my_tardis_obj(self, obj: MyTardisContextObject) -> ContextEntity:
+        """Add a MyTardis object of unknown type to the RO-Crate
+
+        Args:
+            obj (MyTardisContextObject): the my tardis object to be added to the crate
+
+        Returns:
+            ContextEntity: the my tardis object as an RO-Crate entity
+        """
+        match obj:
+            case Project():
+                return self.add_project(obj)
+            case Experiment():
+                return self.add_experiment(obj)
+            case Dataset():
+                return self.add_dataset(obj)
+            case Datafile():
+                return self.add_datafile(obj)
+            case Instrument():
+                pass
+                # pass until add instrument included
+            case _:
+                return self.add_context_object(obj)

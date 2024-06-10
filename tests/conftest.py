@@ -4,7 +4,6 @@
 # test building a functional crate out of components
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 from pytest import fixture
 from rocrate.rocrate import ROCrate
@@ -176,8 +175,8 @@ def test_person(
 
 
 @fixture
-def test_base_object(test_name: str) -> BaseObject:
-    return BaseObject(identifier=test_name)
+def test_base_object() -> BaseObject:
+    return BaseObject()
 
 
 @fixture
@@ -187,14 +186,14 @@ def test_mytardis_metadata(
     test_metadata_type: str,
     test_metadata_id: str,
     test_metadata_schema: str,
+    test_datafile: Datafile,
 ) -> MTMetadata:
     return MTMetadata(
         name=test_name,
-        identifier=test_metadata_id,
         value=test_metadata_value,
         mt_type=test_metadata_type,
         sensitive=False,
-        parents=None,
+        parent=test_datafile,
         mt_schema=test_metadata_schema,
     )
 
@@ -206,14 +205,14 @@ def test_sensitive_metadata(
     test_metadata_type: str,
     test_metadata_id: str,
     test_metadata_schema: str,
+    test_datafile: Datafile,
 ) -> MTMetadata:
     return MTMetadata(
         name=test_name,
-        identifier=test_metadata_id + "_sensitive",
         value=test_metadata_value,
         mt_type=test_metadata_type,
         sensitive=True,
-        parents=None,
+        parent=test_datafile,
         mt_schema=test_metadata_schema,
     )
 
@@ -227,25 +226,13 @@ def test_context_object(
     test_schema_type,
 ) -> ContextObject:
     return ContextObject(
-        identifier=test_name,
         name=test_name,
         description=test_description,
         mt_identifiers=["test_context_object"],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
     )
-
-
-@fixture
-def test_metadata_list(
-    test_mytardis_metadata, test_sensitive_metadata
-) -> List[MTMetadata]:
-    return {
-        test_mytardis_metadata.name: test_mytardis_metadata,
-        test_sensitive_metadata.name: test_sensitive_metadata,
-    }
 
 
 @fixture
@@ -258,14 +245,12 @@ def test_instrument(
     test_schema_type,
 ) -> Instrument:
     return Instrument(
-        identifier=test_instrument_name,
         name=test_instrument_name,
         description=test_description,
         mt_identifiers=[test_instrument_name],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
         location=test_location,
     )
 
@@ -278,14 +263,16 @@ def test_org_ACL(
     test_datatime,
     test_extra_properties,
     test_group,
+    test_datafile,
 ) -> ACL:
     return ACL(
-        identifier="test_ACL",
+        name="test_acl",
         grantee=test_group,
         grantee_type="Audiance",
         mytardis_owner=True,
         mytardis_can_download=True,
         mytardis_see_sensitive=False,
+        parent=test_datafile,
     )
 
 
@@ -298,18 +285,14 @@ def test_person_ACL(
     test_extra_properties,
 ) -> ACL:
     return ACL(
-        identifier="test_person_ACL",
+        name="test_acl",
         grantee=test_person,
         grantee_type="Person",
         mytardis_owner=False,
         mytardis_can_download=False,
         mytardis_see_sensitive=False,
+        parent=test_datafile,
     )
-
-
-@fixture
-def test_acl_list(test_org_ACL, test_person_ACL) -> List[ACL]:
-    return [test_person_ACL, test_org_ACL]
 
 
 @fixture
@@ -319,20 +302,14 @@ def test_mytardis_context_object(
     test_datatime,
     test_extra_properties,
     test_schema_type,
-    test_acl_list,
-    test_metadata_list,
 ) -> MyTardisContextObject:
     return MyTardisContextObject(
-        identifier=test_name,
         name=test_name,
         description=test_description,
         mt_identifiers=["test_mytardis_context_object"],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
-        acls=test_acl_list,
-        metadata=test_metadata_list,
     )
 
 
@@ -354,21 +331,15 @@ def test_project(
     test_datatime,
     test_extra_properties,
     test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_person,
 ) -> Project:
     return Project(
-        identifier="Project",
         name="Project_name",
         description=test_description,
         mt_identifiers=["Project"],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
-        acls=test_acl_list,
-        metadata=test_metadata_list,
         principal_investigator=test_person,
         contributors=[test_person],
     )
@@ -381,22 +352,16 @@ def test_experiment(
     test_datatime,
     test_extra_properties,
     test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_project,
     test_person,
 ) -> Experiment:
     return Experiment(
-        identifier="experiment_name",
         name="experiment_name",
         description=test_description,
         mt_identifiers=["experiment"],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
-        acls=test_acl_list,
-        metadata=test_metadata_list,
         contributors=[test_person],
         mytardis_classification=None,
         projects=[test_project],
@@ -413,21 +378,15 @@ def test_dataset(
     test_datatime,
     test_extra_properties,
     test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_person,
 ) -> Dataset:
     return Dataset(
-        identifier=test_directory.as_posix(),
         name="test_dataset",
         description=test_description,
         mt_identifiers=[test_directory.as_posix()],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
-        acls=test_acl_list,
-        metadata=test_metadata_list,
         contributors=[test_person],
         experiments=[test_experiment],
         directory=test_directory,
@@ -442,23 +401,17 @@ def test_datafile(
     test_datatime,
     test_extra_properties,
     test_schema_type,
-    test_acl_list,
-    test_metadata_list,
     test_person,
     test_filepath,
     test_dataset,
 ) -> Datafile:
     return Datafile(
-        identifier=test_filepath.as_posix(),
         name="test_datafile",
         description=test_description,
         mt_identifiers=[test_filepath],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
-        schema_type=test_schema_type,
-        acls=test_acl_list,
-        metadata=test_metadata_list,
         filepath=test_filepath,
         dataset=test_dataset,
     )

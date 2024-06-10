@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from slugify import slugify
 
-from .rocrate_dataclasses import Datafile, Dataset, Experiment, Project
+from .rocrate_dataclasses import ACL, Datafile, Dataset, Experiment, MTMetadata, Project
 
 
 class CrateManifest:
@@ -19,11 +19,15 @@ class CrateManifest:
         experiments: Optional[Dict[str, Experiment]] = None,
         datasets: Optional[Dict[str, Dataset]] = None,
         datafiles: Optional[List[Datafile]] = None,
+        metadata: Optional[List[MTMetadata]] = None,
+        acls: Optional[List[ACL]] = None,
     ):
         self.projcets = projcets or {}
         self.experiments = experiments or {}
         self.datasets = datasets or {}
         self.datafiles = datafiles or []
+        self.metadata = metadata or []
+        self.acls = acls or []
 
     def add_projects(self, projcets: Dict[str, Project]) -> None:
         self.projcets = self.projcets | projcets
