@@ -101,7 +101,6 @@ def archive_crate(
         bag = bagit.Bag(crate_location)
         if not bag.is_valid():
             logger.warning("Bagit for crate is not valid!")
-    logger.info("validating bagit before archive %s")
     if not archive_type:
         return
     match archive_type:
