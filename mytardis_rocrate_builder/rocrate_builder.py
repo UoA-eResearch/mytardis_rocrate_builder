@@ -20,6 +20,7 @@ from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     Datafile,
     Dataset,
     Experiment,
+    Group,
     Instrument,
     MTMetadata,
     MyTardisContextObject,
@@ -70,10 +71,33 @@ class ROBuilder:
         parent_obj = self.crate.dereference(acl.parent.id) or self.add_my_tardis_obj(
             acl.parent
         )
-        # Create person or group the ACL refers to here if it does not already exist
+        if grantee_entity := self.crate.dereference(acl_entity.get("grantee")):
+            pass
+        else:
+            match acl.grantee:
+                case Group():
+                    grantee_entity = self.add_group(acl.grantee)
+                case Person():
+                    grantee_entity = self.__add_person_to_crate(acl.grantee)
+        grantee_entity.append_to("granteeOf", acl_entity.id)
         acl_entity.append_to("subjectOf", parent_obj.id)
         parent_obj.append_to("hasDigitalDocumentPermission", acl.id)
         return acl_entity
+
+    def add_group(self, group: Group) -> ContextEntity:
+        """Add a group to the crate
+
+        Args:
+            group (Group): the group dataclass to be added
+
+        Returns:
+            ContextEntity: the group as an RO-Crate context object
+        """
+        return ContextEntity(
+            crate=self.crate,
+            identifier=group.id,
+            properties={"@type": group.schema_type, "name": group.name},
+        )
 
     def __add_organisation(self, organisation: Organisation) -> None:
         """Read in an Organisation object and create a Organization entity in the crate
@@ -517,23 +541,6 @@ class ROBuilder:
         Returns:
             DataEntity: the RO-Crate context entity representing the ACL
         """
-        # REPLACE WITH ADD GROUP AND ADD PERSON_ACL FUNCTION
-        #  if not self.crate.dereference(acl.grantee):
-        #     self.add_context_object(
-        #         context_object=ContextObject(
-        #             name=f"{acl.grantee} ACL holder",
-        #             description=f"Owner of ACL: {acl.grantee}",
-        #             mt_identifiers=[acl.grantee],
-        #             schema_type=(
-        #                 ["Organization"]
-        #                 if "organization" in acl.grantee_type
-        #                 else ["Person"]
-        #             ),
-        #             date_created=None,
-        #             date_modified=None,
-        #             additional_properties=None,
-        #         )
-        # )
 
         identifier = acl.id
         properties = {
