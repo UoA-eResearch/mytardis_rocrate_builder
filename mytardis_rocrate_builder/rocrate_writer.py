@@ -13,7 +13,7 @@ from rocrate.rocrate import ROCrate
 
 from . import PROCESSES
 from .rocrate_builder import ROBuilder
-from .rocrate_dataclasses.data_class_utils import CrateManifest
+from .rocrate_dataclasses.crate_manifest import CrateManifest
 
 logger = logging.getLogger(__name__)
 
