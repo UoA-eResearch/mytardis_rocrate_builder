@@ -2,13 +2,13 @@
 
 import uuid
 from abc import ABC
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal, Optional
 
-from pydantic import AfterValidator, PlainSerializer, WithJsonSchema
+from pydantic import AfterValidator, Field, PlainSerializer, WithJsonSchema
 from slugify import slugify
 from validators import url
 
@@ -103,6 +103,7 @@ class Person:
         full name: the first and last name of the person
     """
 
+    identifier: str | int | float = Field(init=False, frozen=True)
     name: str
     email: str
     mt_identifiers: List[str]
@@ -111,7 +112,9 @@ class Person:
     full_name: Optional[str] = None
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.name)
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.name)
+        )
 
     @property
     def id(self) -> str | int | float:
@@ -127,14 +130,17 @@ class Group:
         name (str): The group name of the group
     """
 
+    identifier: str | int | float = Field(init=False, frozen=True)
     name: str
     schema_type: str = "Audience"
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        )
 
     @property
-    def id(self) -> str:
+    def id(self) -> str | int | float:
         """Return the group name as the RO-Crate ID"""
         return self.identifier
 
@@ -148,10 +154,10 @@ class BaseObject(ABC):
             Assigned based on UUID generation
     """
 
-    identifier: str | int | float = field(init=False)
+    identifier: str | int | float = Field(init=False, frozen=True)
 
     def __post_init__(self) -> None:
-        self.identifier = str(uuid.uuid4())
+        object.__setattr__(self, "identifier", str(uuid.uuid4()))
 
     @property
     def id(self) -> str | int | float:
@@ -181,10 +187,10 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
     date_created: Optional[datetime] = None
     date_modified: Optional[List[datetime]] = None
     additional_properties: Optional[Dict[str, Any]] = None
-    schema_type: Optional[str | list[str]] = field(init=False)
+    schema_type: Optional[str | list[str]] = Field(init=False)
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(self.name)
+        object.__setattr__(self, "identifier", gen_uuid_id(self.name))
         self.schema_type = "Thing"
 
 
@@ -212,7 +218,9 @@ class MyTardisContextObject(ContextObject):
     )  # NOT IN SCHEMA.ORG
 
     def __post_init__(self) -> None:
-        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        )
 
 
 @dataclass(kw_only=True)
@@ -231,8 +239,10 @@ class Project(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = "Project"
-        self.identifier = gen_uuid_id(
-            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))
+        object.__setattr__(
+            self,
+            "identifier",
+            gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))),
         )
 
 
@@ -250,8 +260,10 @@ class Experiment(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"
-        self.identifier = gen_uuid_id(
-            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))
+        object.__setattr__(
+            self,
+            "identifier",
+            gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))),
         )
 
 
@@ -272,7 +284,7 @@ class Dataset(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = "Dataset"
-        self.identifier = self.directory.as_posix()
+        object.__setattr__(self, "identifier", self.directory.as_posix())
 
 
 @dataclass(kw_only=True)
@@ -292,7 +304,7 @@ class Datafile(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = ["File", "MediaObject"]
-        self.identifier = self.filepath.as_posix()
+        object.__setattr__(self, "identifier", self.filepath.as_posix())
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root
@@ -306,6 +318,7 @@ class Datafile(MyTardisContextObject):
         except ValueError:
             new_filepath = self.filepath
         self.filepath = new_filepath
+        object.__setattr__(self, "identifier", self.filepath.as_posix())
         return self.filepath
 
 
