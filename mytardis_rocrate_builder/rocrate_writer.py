@@ -6,9 +6,10 @@ import os
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import bagit
+from gnupg import GPG
 from rocrate.rocrate import ROCrate
 
 from . import PROCESSES
@@ -141,3 +142,39 @@ def archive_crate(
                         )
                         logger.info("wirting to archived path %s", arcname)
                         out_zip.write(os.path.join(root, filename), arcname=arcname)
+
+
+def bulk_encrypt_file(
+    gpg_binary: Path,
+    pubkey_fingerprints: List[str],
+    data_to_encrypt: Path,
+    output_path: Path,
+) -> None:
+    """Encrypt a file using gnupg to a specific set of recipents
+
+    Args:
+        gpg_binary (Path): the gpg binary to run this encryption
+        pubkey_fingerprints (List[str]): a list of public key fingerprints to encrypt to
+        data_to_encrypt (Path): the location of the file to encrypt
+        output_path (Path): the desitnation of the output encrypted file
+    """
+    gpg = GPG(binary=gpg_binary)
+    if data_to_encrypt.is_file():
+        with open(data_to_encrypt, "rb") as f:
+            status = gpg.encrypt(
+                f.read(),
+                recipients=pubkey_fingerprints,
+                armor=False,
+                output=output_path / ".gpg",
+            )
+
+    else:
+        with open(f"{data_to_encrypt}.tar", "rb") as f:
+            status = gpg.encrypt(
+                f.read(),
+                recipients=pubkey_fingerprints,
+                armor=False,
+                output=output_path / ".tar.gpg",
+            )
+        logger.info("encrypt ok: %s", status.ok)
+        logger.info("encrypt status: %s", status.status)
