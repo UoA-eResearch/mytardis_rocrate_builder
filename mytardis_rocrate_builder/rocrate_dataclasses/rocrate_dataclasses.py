@@ -269,7 +269,8 @@ class Instrument(MyTardisContextObject):
 
 
 @dataclass(kw_only=True)
-class Project(MyTardisContextObject):
+class Project(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
+    # number of attr based on MyTardis module also most are optional
     """Concrete Project class for RO-Crate - inherits from ContextObject
     https://schema.org/Project
 
@@ -281,6 +282,12 @@ class Project(MyTardisContextObject):
 
     principal_investigator: Person  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]] = None
+    institution: Optional[Organisation] = None
+    embargo_until: Optional[datetime] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    created_by: Optional[User] = None
+    url: Optional[Url] = None
 
     def __post_init__(self) -> None:
         self.schema_type = "Project"

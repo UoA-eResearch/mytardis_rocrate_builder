@@ -194,7 +194,13 @@ def test_adda_additional_properites(
 
 @fixture
 def test_ro_crate_project(
-    test_description, test_extra_properties, test_person, ro_date, crate, test_project
+    test_description,
+    test_extra_properties,
+    test_person,
+    ro_date,
+    crate,
+    test_project,
+    test_organization,
 ) -> None:
     return ROContextEntity(
         crate,
