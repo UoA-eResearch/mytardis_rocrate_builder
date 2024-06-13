@@ -38,6 +38,20 @@ JsonProperties = Dict[str, str | List[str] | Dict[str, Any]]
 IdentiferType = str | int | float
 
 
+def serialize_optional_date(date: datetime | None) -> str | None:
+    """Serialize a date to iso format, if it exists
+
+    Args:
+        date (datetime | None): the date to be serialized
+
+    Returns:
+        the date as an iso string or none
+    """
+    if date is None:
+        return date
+    return date.isoformat()
+
+
 class ROBuilder:
     """A class to hold and add entries to an ROCrate
 
@@ -58,6 +72,18 @@ class ROBuilder:
         """
         self.crate = crate
         self.flatten_additional_properties = flatten_additional_properties
+
+    def _add_optional_attr(
+        self, entity: ContextEntity, label: str, value: Any, compact: bool = False
+    ) -> None:
+        if value is None:
+            return
+        if isinstance(value, MyTardisContextObject):
+            value_entity = self.crate.dereference(value.id) or self.add_my_tardis_obj(
+                value
+            )
+            value = value_entity.id
+        entity.append_to(label, value=value, compact=compact)
 
     def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
         """Add an individual ACL to the RO-Crate
@@ -129,7 +155,7 @@ class ROBuilder:
             },
         )
 
-    def __add_organisation(self, organisation: Organisation) -> None:
+    def __add_organisation(self, organisation: Organisation) -> ContextEntity:
         """Read in an Organisation object and create a Organization entity in the crate
 
         Args:
@@ -147,13 +173,12 @@ class ROBuilder:
                 "name": organisation.name,
             },
         )
-        if organisation.url:
-            org.append_to("url", organisation.url)
+        self._add_optional_attr(org, "url", organisation.url)
         if len(organisation.mt_identifiers) > 1:
             for index, identifier in enumerate(organisation.mt_identifiers):
                 if index != 0:
                     org.append_to("identifier", identifier)
-        self.crate.add(org)
+        return self.crate.add(org)
 
     def __add_person_to_crate(self, person: Person) -> ROPerson:
         """Read in a Person object and create an entry for them in the crate.
@@ -222,15 +247,23 @@ class ROBuilder:
                 ro_group = self.crate.dereference(group.id) or self.add_group(group)
                 ro_group.append_to("has_member", user_entity.id)
                 user_entity.append_to("groups", ro_group.id)
-        user_entity.append_to("permissions", user.permissions)
-        user_entity.append_to("isDjangoAccount", user.is_django_account, True)
-        user_entity.append_to("is_staff", user.is_staff, True)
-        user_entity.append_to("hashed_password", user.hashed_password, True)
-        user_entity.append_to("is_active", user.is_active, True)
+        self._add_optional_attr(user_entity, "permissions", user.permissions)
+        self._add_optional_attr(
+            user_entity, "isDjangoAccount", user.is_django_account, True
+        )
+        self._add_optional_attr(user_entity, "is_staff", user.is_staff, True)
+        self._add_optional_attr(
+            user_entity, "hashed_password", user.hashed_password, True
+        )
+        self._add_optional_attr(user_entity, "is_active", user.is_active, True)
         if user.last_login:
-            user_entity.append_to("last_login", user.last_login.isoformat(), True)
+            user_entity.append_to(
+                "last_login", serialize_optional_date(user.last_login), True
+            )
         if user.date_joined:
-            user_entity.append_to("date_joined", user.date_joined.isoformat(), True)
+            user_entity.append_to(
+                "date_joined", serialize_optional_date(user.date_joined), True
+            )
         return user_entity
 
     def add_principal_investigator(self, principal_investigator: Person) -> ROPerson:
@@ -430,6 +463,7 @@ class ROBuilder:
         contributors = []
         if project.contributors:
             contributors = self.add_contributors(project.contributors)
+
         properties = {
             "@type": "Project",
             "name": project.name,
@@ -444,7 +478,33 @@ class ROBuilder:
             project.id,
             properties=properties,
         )
+        if project.institution:
+            parent_organization = self.crate.dereference(
+                project.institution.id
+            ) or self.__add_organisation(project.institution)
+            project_obj.append_to("parentOrganization", parent_organization.id)
+            parent_organization.append_to("Projects", project_obj.id)
 
+        self._add_optional_attr(
+            project_obj,
+            "embargo_until",
+            serialize_optional_date(project.embargo_until),
+            True,
+        )
+        self._add_optional_attr(
+            project_obj, "start_time", serialize_optional_date(project.start_time), True
+        )
+        self._add_optional_attr(
+            project_obj, "end_time", serialize_optional_date(project.end_time), True
+        )
+        if project.created_by is not None:
+            creator = self.crate.dereference(project.created_by.id) or self.add_user(
+                project.created_by
+            )
+            project_obj.append_to("createdBy", creator.id)
+            creator.append_to("creator", project_obj.id)
+            self._add_optional_attr(project_obj, "created_by", creator.id)
+        self._add_optional_attr(project_obj, "url", project.url)
         return self._add_mt_identifiers(project, project_obj)
 
     def _update_experiment_meta(
@@ -688,12 +748,17 @@ class ROBuilder:
         """
         match obj:
             case Project():
-                return self.add_project(obj)
+                entity = self.add_project(obj)
             case Experiment():
-                return self.add_experiment(obj)
+                entity = self.add_experiment(obj)
             case Dataset():
-                return self.add_dataset(obj)
+                entity = self.add_dataset(obj)
             case Datafile():
-                return self.add_datafile(obj)
+                entity = self.add_datafile(obj)
+            case Facility():
+                entity = self.add_facillity(obj)
+            case Instrument():
+                entity = self.add_instrument(obj)
             case _:
-                return self.add_context_object(obj)
+                entity = self.add_context_object(obj)
+        return entity
