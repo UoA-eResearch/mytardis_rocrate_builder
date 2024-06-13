@@ -209,6 +209,7 @@ def test_ro_crate_project(
             "mt_identifiers": ["Project"],
             "principal_investigator": "#" + test_person.id,
             "contributors": ["#" + test_person.id],
+            "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
     )
@@ -274,6 +275,7 @@ def test_ro_crate_dataset(
             "datePublished": ro_date,
             "mt_identifiers": [test_directory.as_posix()],
             "instrument": "#" + test_instrument.id,
+            "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
     )
@@ -305,6 +307,7 @@ def test_rocrate_datafile(
             "mt_identifiers": [test_filepath],
             "dataset": crate.root_dataset.id,
             "version": 1.0,
+            "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
     )

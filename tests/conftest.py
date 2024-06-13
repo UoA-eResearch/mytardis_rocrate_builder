@@ -17,6 +17,7 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
     Datafile,
     Dataset,
     Experiment,
+    Facility,
     Group,
     Instrument,
     MTMetadata,
@@ -30,11 +31,6 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
 @fixture
 def test_ogranization_name() -> str:
     return "Unseen Univeristy"
-
-
-@fixture
-def test_location() -> str:
-    return "Brigadoon, 123 Mythical Misty Meadows, Enchanted Glen, ALBA 12345, Scotland, United Kingdom"
 
 
 @fixture
@@ -232,6 +228,19 @@ def test_context_object(
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
+    )
+
+
+@fixture
+def test_location(test_datatime, test_group) -> Facility:
+    return Facility(
+        name="test lab",
+        description="the lab for testing things",
+        mt_identifiers=None,
+        date_created=test_datatime,
+        date_modified=[test_datatime],
+        additional_properties=None,
+        manager_group=test_group,
     )
 
 

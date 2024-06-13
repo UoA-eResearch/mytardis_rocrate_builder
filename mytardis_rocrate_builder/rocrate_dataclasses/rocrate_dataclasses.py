@@ -87,14 +87,39 @@ class Organisation:
 
 
 @dataclass(kw_only=True)
+class Group:
+    """Dataclass to hold the details of a group for RO-Crate
+
+    Attr:
+        name (str): The group name of the group
+    """
+
+    identifier: str | int | float = Field(init=False, frozen=True)
+    name: str
+    permissions: Optional[Dict[str, str]] = None
+    schema_type: Optional[str | List[str]] = Field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        )
+        self.schema_type = "Audience"
+
+    @property
+    def id(self) -> str | int | float:
+        """Return the group name as the RO-Crate ID"""
+        return self.identifier
+
+
+@dataclass(kw_only=True)
 class Person:
     """Dataclass to hold the details of a person for RO-Crate
 
     Attr:
-        identifier (List[str]): An optional list of unique mt_identifiers for the person
+        name : the username of the person object in MyTardis (usually UPI)
+        mt_identifiers (List[str]): An optional list of unique mt_identifiers for the person
             - Must contain UPI for import into MyTardis
             - typically ORCID - default None
-        name : the name of the person object in MyTardis (usually UPI)
         full_name (str): The full name (first name/last name) of the person
         email (str): A contact email address for the person named
         affilitation (Organisation): An organisation that is the primary affiliation for
@@ -123,26 +148,33 @@ class Person:
 
 
 @dataclass(kw_only=True)
-class Group:
-    """Dataclass to hold the details of a group for RO-Crate
-
+class User(Person):  # pylint: disable=too-many-instance-attributes
+    """Dataclass to extend Person as a Django user in MyTardis.
+        Primarily used to link people to Groups if needed,
+        But capable of storing all information
     Attr:
-        name (str): The group name of the group
+        groups (Optional[List[Group]]): All groups this user belongs to
+        isDjangoAccount (Optional[bool]): was this user created in Django
+        permissions (Optional[Dict[str:Any]]): all permissions held by this user account
+        is_staff (Optional[bool]): is this user a staff/admin account
+        hashed_password (Optional[str]): the hashed password of the user
+            DO NOT STORE RAW PASSWORDS
+        is_active (Optional[bool]): is this an active user account
+        is_superuser (Optional[bool]): is this user a superuser? (should we store this?)
+        last_login (Optional[datetime]): last login date of this user
+        date_joined (Optional[datetime]): when did this user join the service
+
     """
 
-    identifier: str | int | float = Field(init=False, frozen=True)
-    name: str
-    schema_type: str = "Audience"
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
-        )
-
-    @property
-    def id(self) -> str | int | float:
-        """Return the group name as the RO-Crate ID"""
-        return self.identifier
+    groups: Optional[List[Group]] = None
+    is_django_account: Optional[bool] = None
+    permissions: Optional[Dict[str, str]] = None
+    is_staff: Optional[bool] = None
+    hashed_password: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+    last_login: Optional[datetime] = None
+    date_joined: Optional[datetime] = None
 
 
 @dataclass(kw_only=True)
@@ -187,19 +219,11 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
     date_created: Optional[datetime] = None
     date_modified: Optional[List[datetime]] = None
     additional_properties: Optional[Dict[str, Any]] = None
-    schema_type: Optional[str | list[str]] = Field(init=False)
+    schema_type: Optional[str | List[str]] = Field(init=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "identifier", gen_uuid_id(self.name))
         self.schema_type = "Thing"
-
-
-@dataclass(kw_only=True)
-class Instrument(ContextObject):
-    """Dataclass for Instruments to be assoicated with MyTardis Datasets"""
-
-    location: str
-    schema_type = ["Instrument", "Thing"]
 
 
 @dataclass(kw_only=True)
@@ -221,6 +245,27 @@ class MyTardisContextObject(ContextObject):
         object.__setattr__(
             self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
         )
+
+
+@dataclass(kw_only=True)
+class Facility(MyTardisContextObject):
+    """Dataclass for Facilites to be assoicated with MyTardis Instruments
+    Attr:
+        manager_group (Group): the group that manages this facillity
+    """
+
+    manager_group: Group
+    schema_type = ["Place"]
+
+
+@dataclass(kw_only=True)
+class Instrument(MyTardisContextObject):
+    """Dataclass for Instruments to be assoicated with MyTardis Datasets
+    Attr:
+        location (Facility): the facility this instrument is located at"""
+
+    location: Facility
+    schema_type = ["Instrument", "Thing"]
 
 
 @dataclass(kw_only=True)
@@ -339,7 +384,7 @@ class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
     """
 
     name: str
-    grantee: Person | Group
+    grantee: User | Group
     grantee_type: Literal["Audiance", "Person"]
     parent: MyTardisContextObject
     mytardis_owner: bool = False

@@ -20,6 +20,7 @@ from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     Datafile,
     Dataset,
     Experiment,
+    Facility,
     Group,
     Instrument,
     MTMetadata,
@@ -27,6 +28,7 @@ from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     Organisation,
     Person,
     Project,
+    User,
 )
 
 MT_METADATA_SCHEMATYPE = "my_tardis_metadata"
@@ -57,6 +59,30 @@ class ROBuilder:
         self.crate = crate
         self.flatten_additional_properties = flatten_additional_properties
 
+    def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
+        """Add an individual ACL to the RO-Crate
+
+        Args:
+            acl (ACL): the ACL to be added
+
+        Returns:
+            DataEntity: the RO-Crate context entity representing the ACL
+        """
+
+        identifier = acl.id
+        properties = {
+            "@type": acl.schema_type,
+            "permission_type": acl.permission_type,
+            "grantee": acl.grantee.id,
+            "grantee_type": acl.grantee_type,
+            "my_tardis_can_download": acl.mytardis_can_download,
+            "mytardis_owner": acl.mytardis_owner,
+            "mytardis_see_sensitive": acl.mytardis_see_sensitive,
+        }
+        return self.crate.add(
+            ContextEntity(self.crate, identifier, properties=properties)
+        )
+
     def add_acl(self, acl: ACL) -> ContextEntity | None:
         """Add an ACL to the RO-Crate.
          updating relationships between ACL and parents
@@ -78,7 +104,7 @@ class ROBuilder:
                 case Group():
                     grantee_entity = self.add_group(acl.grantee)
                 case Person():
-                    grantee_entity = self.__add_person_to_crate(acl.grantee)
+                    grantee_entity = self.add_user(acl.grantee)
         grantee_entity.append_to("granteeOf", acl_entity.id)
         acl_entity.append_to("subjectOf", parent_obj.id)
         parent_obj.append_to("hasDigitalDocumentPermission", acl.id)
@@ -96,7 +122,11 @@ class ROBuilder:
         return ContextEntity(
             crate=self.crate,
             identifier=group.id,
-            properties={"@type": group.schema_type, "name": group.name},
+            properties={
+                "@type": group.schema_type,
+                "name": group.name,
+                "permissions": group.permissions,
+            },
         )
 
     def __add_organisation(self, organisation: Organisation) -> None:
@@ -173,6 +203,35 @@ class ROBuilder:
                     person_obj.append_to("identifier", identifier)
         self.crate.add(person_obj)
         return person_obj
+
+    def add_user(self, user: User) -> ROPerson:
+        """Add a mytardis django user to the crate,
+        including adding this user as a person.
+
+        Args:
+            user (User): the user to be added
+
+        Returns:
+            ROPerson: the user as an RO-Crate entity
+        """
+        user_entity: ROPerson = self.crate.dereference(
+            user.id
+        ) or self.__add_person_to_crate(user)
+        if user.groups:
+            for group in user.groups:
+                ro_group = self.crate.dereference(group.id) or self.add_group(group)
+                ro_group.append_to("has_member", user_entity.id)
+                user_entity.append_to("groups", ro_group.id)
+        user_entity.append_to("permissions", user.permissions)
+        user_entity.append_to("isDjangoAccount", user.is_django_account, True)
+        user_entity.append_to("is_staff", user.is_staff, True)
+        user_entity.append_to("hashed_password", user.hashed_password, True)
+        user_entity.append_to("is_active", user.is_active, True)
+        if user.last_login:
+            user_entity.append_to("last_login", user.last_login.isoformat(), True)
+        if user.date_joined:
+            user_entity.append_to("date_joined", user.date_joined.isoformat(), True)
+        return user_entity
 
     def add_principal_investigator(self, principal_investigator: Person) -> ROPerson:
         """Read in the principal investigator from the project and create an entry for them
@@ -353,6 +412,10 @@ class ROBuilder:
                 properties=properties,
                 additional_properties=data_object.additional_properties,
             )
+        if data_object.mytardis_classification:
+            properties["mytardis_classification"] = str(
+                data_object.mytardis_classification
+            )
         return properties
 
     def add_project(self, project: Project) -> ContextEntity:
@@ -464,7 +527,7 @@ class ROBuilder:
             and isinstance(dataset.instrument, ContextObject)
             and not self.crate.dereference(dataset.instrument.id)
         ):
-            instrument_id = self.add_context_object(dataset.instrument).id
+            instrument_id = self.add_instrument(dataset.instrument).id
         properties["instrument"] = str(instrument_id)
         properties = self._update_properties(data_object=dataset, properties=properties)
 
@@ -532,30 +595,6 @@ class ROBuilder:
         dataset_obj.append_to("hasPart", datafile_obj)
         return self._add_mt_identifiers(datafile, datafile_obj)
 
-    def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
-        """Add an individual ACL to the RO-Crate
-
-        Args:
-            acl (ACL): the ACL to be added
-
-        Returns:
-            DataEntity: the RO-Crate context entity representing the ACL
-        """
-
-        identifier = acl.id
-        properties = {
-            "@type": acl.schema_type,
-            "permission_type": acl.permission_type,
-            "grantee": acl.grantee.id,
-            "grantee_type": acl.grantee_type,
-            "my_tardis_can_download": acl.mytardis_can_download,
-            "mytardis_owner": acl.mytardis_owner,
-            "mytardis_see_sensitive": acl.mytardis_see_sensitive,
-        }
-        return self.crate.add(
-            ContextEntity(self.crate, identifier, properties=properties)
-        )
-
     def add_context_object(self, context_object: ContextObject) -> DataEntity:
         """Add a generic context object to the RO crate
 
@@ -587,6 +626,57 @@ class ROBuilder:
         )
         return context_entitiy
 
+    def add_facillity(self, facility: Facility) -> ContextEntity:
+        """add a facility as a location to the RO-Crate
+
+        Args:
+            facility (Facility): the faciltiy object
+
+        Returns:
+            ContextEntity: the facility as an RO-crate object
+        """
+        manager_group = self.crate.dereference(
+            facility.manager_group.id
+        ) or self.add_group(facility.manager_group)
+        properties: JsonProperties = {
+            "@type": facility.schema_type,
+            "manager_group": manager_group.id,
+            "name": facility.name,
+            "description": facility.description,
+        }
+        properties = self._update_properties(facility, properties=properties)
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=facility.id, properties=properties
+            )
+        )
+
+    def add_instrument(self, instrument: Instrument) -> ContextEntity:
+        """Add an instrument to the RO-Crate
+
+        Args:
+            instrument (Instrument): the instrument object
+
+        Returns:
+            ContextEntity: the instrument as an RO-Crate entity
+        """
+        facility_location = self.crate.dereference(
+            instrument.location.id
+        ) or self.add_facillity(instrument.location)
+        properties: JsonProperties = {
+            "@type": instrument.schema_type,
+            "name": instrument.name,
+            "description": instrument.description,
+            "location": facility_location.id,
+        }
+        facility_location.append_to("containedInPlace", instrument.id)
+        properties = self._update_properties(instrument, properties=properties)
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=instrument.id, properties=properties
+            )
+        )
+
     def add_my_tardis_obj(self, obj: MyTardisContextObject) -> ContextEntity:
         """Add a MyTardis object of unknown type to the RO-Crate
 
@@ -605,8 +695,5 @@ class ROBuilder:
                 return self.add_dataset(obj)
             case Datafile():
                 return self.add_datafile(obj)
-            case Instrument():
-                pass
-                # pass until add instrument included
             case _:
                 return self.add_context_object(obj)
