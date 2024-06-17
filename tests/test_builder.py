@@ -246,6 +246,7 @@ def test_ro_crate_experiment(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
+            "approved": False,
         }
         | test_extra_properties,
     )

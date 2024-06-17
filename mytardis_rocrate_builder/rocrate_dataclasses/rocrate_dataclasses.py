@@ -60,7 +60,8 @@ Url = Annotated[
 
 
 @dataclass(kw_only=True)
-class Organisation:
+class Organisation:  # pylint: disable=too-many-instance-attributes
+    # attributes to match organisations in MyTradis model
     """Dataclass to hold the details of an organisation for RO-Crate
 
     Attr:
@@ -69,6 +70,8 @@ class Organisation:
         name (str): The name of the organisation
         url (str): An optional URL for the organisation - default None
         research_org (bool): is this orgranization a research organization
+        status(str): status of the research org
+        country(str): what is the country of orign of this research org
     """
 
     mt_identifiers: List[str]
@@ -76,6 +79,8 @@ class Organisation:
     location: Optional[str] = None
     url: Optional[Url] = None
     research_org: bool = True
+    status: Optional[str] = None
+    country: Optional[str] = None
 
     def __post_init__(self) -> None:
         self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.mt_identifiers)
@@ -299,16 +304,56 @@ class Project(MyTardisContextObject):  # pylint: disable=too-many-instance-attri
 
 
 @dataclass(kw_only=True)
-class Experiment(MyTardisContextObject):
+class Lisence(BaseObject):
+    """Dataclass for Licences for experiment content
+
+    Attr:
+        url (List[Project]): the projects linked with this experiment
+        contributors (List[Person]): A list of people associated with this experiment
+    """
+
+    url: Url
+    name: str
+    description: str
+    allows_distribution: bool = False
+    is_active: bool = True
+
+    image_url: Optional[Url] = None
+    schema_type: Optional[str | List[str]] = Field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", url)
+        self.schema_type = "CreativeWork"
+
+
+@dataclass(kw_only=True)
+class Experiment(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
+    # number of attributes to match model in my tardis
     """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from yTardisContextObject
     https://schema.org/DataCatalog
     Attr:
         projects (List[Project]): the projects linked with this experiment
         contributors (List[Person]): A list of people associated with this experiment
+        url(Optional[Url]): the url of this project
+        start_time (Optional[datetime]): when did this experiment start
+        end_time (Optional[datetime]): when did this experiment end
+        created_by (Optional[User]): what user created this experiment
+        locked (Optional[bool]): is this experiment locked
+        handle (Optional[str]): external unique idenifier handle in other serivces
+        approved(Optional[bool]): is this project approved?
+        sd_lisence(Optional[Url|Lisence]): what distribution lisence covers this experiment
     """
 
     projects: List[Project]  # NOT IN SCHEMA.ORG
     contributors: Optional[List[Person]] = None
+    url: Optional[Url] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    created_by: Optional[User] = None
+    locked: Optional[bool] = None
+    handle: Optional[str] = None
+    approved: Optional[bool] = False
+    sd_license: Optional[Url | Lisence] = None
 
     def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"
@@ -353,10 +398,13 @@ class Datafile(MyTardisContextObject):
     dataset: Dataset
     version: int = 1
     storage_box: Optional[Url] = None
+    directory: Path = Field(init=False)
+    deleted: Optional[bool] = False
 
     def __post_init__(self) -> None:
         self.schema_type = ["File", "MediaObject"]
         object.__setattr__(self, "identifier", self.filepath.as_posix())
+        self.directory = self.dataset.directory
 
     def update_to_root(self, dataset: Dataset) -> Path:
         """Update a datafile that is a child of a dataset so that dataset is now the root

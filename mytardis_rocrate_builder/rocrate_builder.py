@@ -23,6 +23,7 @@ from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     Facility,
     Group,
     Instrument,
+    Lisence,
     MTMetadata,
     MyTardisContextObject,
     Organisation,
@@ -524,11 +525,38 @@ class ROBuilder:
         properties = self._update_properties(
             data_object=experiment, properties=properties
         )
-        return ContextEntity(
+        experiment_entity = ContextEntity(
             self.crate,
             identifier,
             properties=properties,
         )
+        self._add_optional_attr(experiment_entity, "url", experiment.url)
+        self._add_optional_attr(
+            experiment_entity, "url", serialize_optional_date(experiment.start_time)
+        )
+        self._add_optional_attr(
+            experiment_entity, "url", serialize_optional_date(experiment.end_time)
+        )
+        if experiment.created_by:
+            creator_entity = self.crate.dereference(
+                experiment.created_by.id
+            ) or self.add_user(experiment.created_by)
+            experiment_entity.append_to("creator", creator_entity.id)
+            creator_entity.append_to("created", experiment_entity.id)
+        self._add_optional_attr(experiment_entity, "locked", experiment.locked, True)
+        self._add_optional_attr(experiment_entity, "handle", experiment.handle)
+        self._add_optional_attr(
+            experiment_entity, "approved", experiment.approved, True
+        )
+        if experiment.sd_license:
+            lisence_id = experiment.sd_license
+            if isinstance(experiment.sd_license, Lisence):
+                lisence_id = str(
+                    self.crate.dereference(experiment.sd_license).id
+                    or self.add_lisence(experiment.sd_license).id
+                )
+            experiment_entity.append_to("sdLicense", lisence_id)
+        return experiment_entity
 
     def add_experiment(self, experiment: Experiment) -> ContextEntity:
         """Add an experiment to the RO crate
@@ -736,6 +764,33 @@ class ROBuilder:
                 crate=self.crate, identifier=instrument.id, properties=properties
             )
         )
+
+    def add_lisence(self, lisence: Lisence) -> ContextEntity:
+        """Add a lisence that should be associated with an experiment to the RO-Crate
+
+        Args:
+            lisence (Lisence): the lisence as a context object
+
+        Returns:
+            ContextEntity: the lisence entity in the RO-Crate
+        """
+        properties: JsonProperties = {
+            "@type": str(lisence.schema_type),
+            "name": lisence.name,
+            "description": lisence.description,
+        }
+        lisence_entity = self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=lisence.id, properties=properties
+            )
+        )
+
+        self._add_optional_attr(
+            lisence_entity, "allows_distribution", lisence.allows_distribution, True
+        )
+        self._add_optional_attr(lisence_entity, "is_active", lisence.is_active, True)
+        self._add_optional_attr(lisence_entity, "image", lisence.image_url, False)
+        return lisence_entity
 
     def add_my_tardis_obj(self, obj: MyTardisContextObject) -> ContextEntity:
         """Add a MyTardis object of unknown type to the RO-Crate
