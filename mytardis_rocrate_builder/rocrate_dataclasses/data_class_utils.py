@@ -1,71 +1,9 @@
-# pylint: disable=missing-function-docstring
 """Helper functions and classes for managing and moving RO-Crate ingestible dataclasses.
 """
 
-import copy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from slugify import slugify
-
-from .rocrate_dataclasses import Datafile, Dataset, Experiment, Project
-
-
-class CrateManifest:
-    """Manifest for storing all dataclasses that will be built into and RO-Crate"""
-
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        projcets: Optional[Dict[str, Project]] = None,
-        experiments: Optional[Dict[str, Experiment]] = None,
-        datasets: Optional[Dict[str, Dataset]] = None,
-        datafiles: Optional[List[Datafile]] = None,
-    ):
-        self.projcets = projcets or {}
-        self.experiments = experiments or {}
-        self.datasets = datasets or {}
-        self.datafiles = datafiles or []
-
-    def add_projects(self, projcets: Dict[str, Project]) -> None:
-        self.projcets = self.projcets | projcets
-
-    def add_experiments(self, experiments: Dict[str, Experiment]) -> None:
-        self.experiments = self.experiments | experiments
-
-    def add_datasets(self, datasets: Dict[str, Dataset]) -> None:
-        self.datasets = self.datasets | datasets
-
-    def add_datafiles(self, datafiles: List[Datafile]) -> None:
-        self.datafiles.extend(datafiles)
-
-
-def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateManifest:
-    dataset = copy.deepcopy(dataset)
-    project_ids: set[str] = set()
-    out_experiments: Dict[str, Experiment] = {}
-    for experiment in dataset.experiments:
-        if out_experiment := in_manifest.experiments.get(str(experiment.id)):
-            out_experiments[str(experiment.id)] = out_experiment
-            project_ids.update(str(project.id) for project in out_experiment.projects)
-    out_projects: Dict[str, Project] = {
-        project_id: in_manifest.projcets[project_id]
-        for project_id in project_ids
-        if in_manifest.projcets.get(project_id)
-    }
-
-    out_files = [
-        copy.deepcopy(datafile)
-        for datafile in in_manifest.datafiles
-        if datafile.dataset.directory == dataset.directory
-    ]
-    _ = [df.update_to_root(dataset) for df in out_files]
-
-    # dataset.update_path(Path("./"))
-    return CrateManifest(
-        projcets=out_projects,
-        experiments=out_experiments,
-        datasets={str(dataset.id): dataset},
-        datafiles=out_files,
-    )
 
 
 def convert_to_property_value(

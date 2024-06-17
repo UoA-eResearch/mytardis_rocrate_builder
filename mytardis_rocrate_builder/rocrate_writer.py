@@ -6,16 +6,17 @@ import os
 import tarfile
 import zipfile
 from pathlib import Path
+from typing import List, Optional
 
 import bagit
+from gnupg import GPG
 from rocrate.rocrate import ROCrate
 
+from . import PROCESSES
 from .rocrate_builder import ROBuilder
-from .rocrate_dataclasses.data_class_utils import CrateManifest
+from .rocrate_dataclasses.crate_manifest import CrateManifest
 
 logger = logging.getLogger(__name__)
-
-PROCESSES = 8
 
 
 def write_crate(
@@ -49,6 +50,12 @@ def write_crate(
     logger.info("adding datafiles")
     _ = [builder.add_datafile(datafile) for datafile in crate_contents.datafiles]
     # crate.source = None
+
+    logger.info("adding mytardis metadata")
+    _ = [builder.add_metadata(metadata) for metadata in crate_contents.metadata]
+
+    logger.info("adding access level controls")
+    _ = [builder.add_acl(acl) for acl in crate_contents.acls]
     logger.info(
         "writing crate metadata and moving files from %s to %s",
         crate_source,
@@ -70,11 +77,19 @@ def bagit_crate(crate_path: Path, contact_name: str) -> None:
         crate_path (Path): location of the RO-Crate
         contact_name (str): contact name listed on the RO-Crate
     """
-    bagit.make_bag(crate_path, {"Contact-Name": contact_name}, processes=PROCESSES)
+    bagit.make_bag(
+        crate_path,
+        {"Contact-Name": contact_name},
+        processes=PROCESSES,
+        checksum=["md5", "sha256", "sha512"],
+    )
 
 
 def archive_crate(
-    archive_type: str | None, output_location: Path, crate_location: Path
+    archive_type: str | None,
+    output_location: Path,
+    crate_location: Path,
+    validate: Optional[bool],
 ) -> None:
     """Archive the RO-Crate as a TAR, GZIPPED TAR or ZIP archive
 
@@ -83,7 +98,10 @@ def archive_crate(
         output_location (Path): the path where the archive should be written to
         crate_location (Path): the path of the RO-Crate to be archived
     """
-
+    if validate:
+        bag = bagit.Bag(crate_location)
+        if not bag.is_valid():
+            logger.warning("Bagit for crate is not valid!")
     if not archive_type:
         return
     match archive_type:
@@ -124,3 +142,39 @@ def archive_crate(
                         )
                         logger.info("wirting to archived path %s", arcname)
                         out_zip.write(os.path.join(root, filename), arcname=arcname)
+
+
+def bulk_encrypt_file(
+    gpg_binary: Path,
+    pubkey_fingerprints: List[str],
+    data_to_encrypt: Path,
+    output_path: Path,
+) -> None:
+    """Encrypt a file using gnupg to a specific set of recipents
+
+    Args:
+        gpg_binary (Path): the gpg binary to run this encryption
+        pubkey_fingerprints (List[str]): a list of public key fingerprints to encrypt to
+        data_to_encrypt (Path): the location of the file to encrypt
+        output_path (Path): the desitnation of the output encrypted file
+    """
+    gpg = GPG(binary=gpg_binary)
+    if data_to_encrypt.is_file():
+        with open(data_to_encrypt, "rb") as f:
+            status = gpg.encrypt(
+                f.read(),
+                recipients=pubkey_fingerprints,
+                armor=False,
+                output=output_path / ".gpg",
+            )
+
+    else:
+        with open(f"{data_to_encrypt}.tar", "rb") as f:
+            status = gpg.encrypt(
+                f.read(),
+                recipients=pubkey_fingerprints,
+                armor=False,
+                output=output_path / ".tar.gpg",
+            )
+        logger.info("encrypt ok: %s", status.ok)
+        logger.info("encrypt status: %s", status.status)
