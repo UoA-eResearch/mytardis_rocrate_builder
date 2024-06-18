@@ -220,7 +220,7 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
 
     name: str
     description: str
-    mt_identifiers: List[str | int | float]
+    mt_identifiers: Optional[List[str | int | float]] = None
     date_created: Optional[datetime] = None
     date_modified: Optional[List[datetime]] = None
     additional_properties: Optional[Dict[str, Any]] = None
