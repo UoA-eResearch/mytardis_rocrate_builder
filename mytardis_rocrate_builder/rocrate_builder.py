@@ -299,6 +299,8 @@ class ROBuilder:
         Returns:
             ContextEntity | DataEntity: The modified RO-Crate object
         """
+        if obj_dataclass.mt_identifiers is None:
+            return self.crate.add(rocrate_obj)
         for _, identifier in enumerate(obj_dataclass.mt_identifiers):
             if rocrate_obj.id != identifier:
                 rocrate_obj.append_to("mt_identifiers", identifier)
