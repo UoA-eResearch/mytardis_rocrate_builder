@@ -259,8 +259,8 @@ class Facility(MyTardisContextObject):
         manager_group (Group): the group that manages this facillity
     """
 
-    manager_group: Group
-    schema_type = ["Place"]
+    schema_type = "Place"
+    manager_group: Optional[Group] = None
 
 
 @dataclass(kw_only=True)
