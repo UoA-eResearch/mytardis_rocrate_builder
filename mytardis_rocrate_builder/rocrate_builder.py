@@ -725,15 +725,17 @@ class ROBuilder:
         Returns:
             ContextEntity: the facility as an RO-crate object
         """
-        manager_group = self.crate.dereference(
-            facility.manager_group.id
-        ) or self.add_group(facility.manager_group)
+
         properties: JsonProperties = {
             "@type": facility.schema_type,
-            "manager_group": manager_group.id,
             "name": facility.name,
             "description": facility.description,
         }
+        if facility.manager_group:
+            manager_group = self.crate.dereference(
+                facility.manager_group.id
+            ) or self.add_group(facility.manager_group)
+            properties["manager_group"] = manager_group.id
         properties = self._update_properties(facility, properties=properties)
         return self.crate.add(
             ContextEntity(
