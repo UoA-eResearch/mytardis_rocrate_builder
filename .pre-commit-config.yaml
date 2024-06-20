@@ -36,7 +36,7 @@ repos:
         - rocrate
         - slugify
         - validators
-        - gnupg
+        - python-gnupg
       args:
         - "--ignore-patterns=(.)*_test.py,test_\u002E*?py,conftest.py"
 -   repo: local
