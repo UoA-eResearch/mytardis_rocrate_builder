@@ -281,7 +281,7 @@ def test_ro_crate_dataset(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_directory.as_posix()],
-            "instrument": "#" + test_instrument.id,
+            "instrument": "#" + str(test_instrument.id),
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,

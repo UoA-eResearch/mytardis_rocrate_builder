@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import AfterValidator, Field, PlainSerializer, WithJsonSchema
 from slugify import slugify
@@ -224,7 +224,7 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
     date_created: Optional[datetime] = None
     date_modified: Optional[List[datetime]] = None
     additional_properties: Optional[Dict[str, Any]] = None
-    schema_type: Optional[str | List[str]] = Field(init=False)
+    schema_type: Union[str, List[str]] = Field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "identifier", gen_uuid_id(self.name))
@@ -259,8 +259,11 @@ class Facility(MyTardisContextObject):
         manager_group (Group): the group that manages this facillity
     """
 
-    schema_type = "Place"
     manager_group: Optional[Group] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Place"
 
 
 @dataclass(kw_only=True)
@@ -270,7 +273,10 @@ class Instrument(MyTardisContextObject):
         location (Facility): the facility this instrument is located at"""
 
     location: Facility
-    schema_type = ["Instrument", "Thing"]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Instrument"
 
 
 @dataclass(kw_only=True)
