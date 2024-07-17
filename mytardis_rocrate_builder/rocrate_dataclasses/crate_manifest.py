@@ -74,14 +74,14 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     out_files = [
         copy.deepcopy(datafile)
         for datafile in in_manifest.datafiles
-        if datafile.dataset == dataset
+        if datafile.dataset is dataset
     ]
     out_file_ids = (outfile.id for outfile in out_files)
     outmetadata = []
     for metadata in in_manifest.metadata:
         parent_id = metadata.parent.id
         if (
-            metadata.parent == dataset
+            metadata.parent is dataset
             or parent_id in out_experiments
             or parent_id in out_projects
             or parent_id in out_file_ids
@@ -91,7 +91,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     for acl in in_manifest.acls:
         parent_id = acl.parent.id
         if (
-            acl.parent == dataset
+            acl.parent is dataset
             or parent_id in out_experiments
             or parent_id in out_projects
             or parent_id in out_file_ids
