@@ -72,7 +72,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     out_files = [
         copy.deepcopy(datafile)
         for datafile in in_manifest.datafiles
-        if datafile.dataset.directory == dataset.directory
+        if datafile.dataset == dataset
     ]
     out_file_ids = (outfile.id for outfile in out_files)
     outmetadata = []
