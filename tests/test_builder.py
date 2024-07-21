@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+from gnupg import GenKey
 from pytest import fixture
 from rocrate.model.contextentity import ContextEntity as ROContextEntity
 from rocrate.model.dataset import Dataset as RODataset
@@ -56,6 +57,31 @@ def test_rocrate_metadata(
             "value": test_metadata_value,
             "myTardis-type": test_metadata_type,
             "sensitive": False,
+            "mytardis-schema": "http://rocrate.testing/project/1/schema",
+            "parents": [test_datafile.id],
+        },
+    )
+
+
+@fixture
+def test_rocrate_sensitive_metadata(
+    test_name: str,
+    test_metadata_value: str,
+    test_metadata_type: str,
+    crate: ROCrate,
+    test_datafile: Datafile,
+    test_mytardis_metadata: MTMetadata,
+    test_gpg_key: GenKey,
+) -> ROContextEntity:
+    return ROContextEntity(
+        crate,
+        test_mytardis_metadata.id,
+        properties={
+            "@type": MT_METADATA_SCHEMATYPE,
+            "name": test_name,
+            "value": test_metadata_value,
+            "myTardis-type": test_metadata_type,
+            "sensitive": True,
             "mytardis-schema": "http://rocrate.testing/project/1/schema",
             "parents": [test_datafile.id],
         },
@@ -123,6 +149,17 @@ def test_crate_ACL(
 def test_add_metadata(builder, test_mytardis_metadata, test_rocrate_metadata) -> None:
     crate_metadata = builder._add_metadata_to_crate(test_mytardis_metadata)
     assert crate_metadata.properties() == test_rocrate_metadata.properties()
+
+
+def test_add_sensitive_metadata(
+    builder, test_sensitive_metadata, test_rocrate_sensitive_metadata
+) -> None:
+    crate_metadata = builder._add_metadata_to_crate(test_sensitive_metadata)
+    assert crate_metadata.get("recipients") is not None
+    test_rocrate_sensitive_metadata.append_to(
+        "recipients", crate_metadata.get("recipients")
+    )
+    assert crate_metadata.properties() == test_rocrate_sensitive_metadata.properties()
 
 
 def test_add_principal_investigator(

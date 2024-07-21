@@ -8,9 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from gnupg import GPG
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.data_entity import DataEntity
 from rocrate.model.encryptedcontextentity import EncryptedContextEntity
+from rocrate.model.keyholder import Keyholder, PubkeyObject
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
@@ -315,7 +317,7 @@ class ROBuilder:
         """
 
         if metadata_obj.sensitive:
-            if not self.crate.pubkey_fingerprints:
+            if not metadata_obj.pubkey_fingerprints:
                 return None
             metadata = EncryptedContextEntity(
                 self.crate,
@@ -329,8 +331,24 @@ class ROBuilder:
                     "parents": [metadata_obj.parent.id],
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
-                pubkey_fingerprints=[],
             )
+            gpg = GPG(self.crate.gpg_binary)
+            held_keys = gpg.list_keys()
+            for fingerprint in metadata_obj.pubkey_fingerprints:
+                if recipent_key := held_keys.key_map.get(fingerprint):
+                    pubkey = PubkeyObject(
+                        uids=recipent_key["uids"],
+                        method=recipent_key["algo"],
+                        key=recipent_key["keyid"],
+                    )
+                else:
+                    pubkey = PubkeyObject(
+                        uids=[str(fingerprint)], key=[fingerprint], method="unknown"
+                    )
+                recipient = self.crate.add(
+                    Keyholder(self.crate, pubkey_fingerprint=pubkey)
+                )
+                metadata.append_to("recipients", recipient)
         else:
             metadata = ContextEntity(
                 self.crate,
