@@ -5,6 +5,7 @@
 from datetime import datetime
 from pathlib import Path
 
+from gnupg import GPG, GenKey
 from pytest import fixture
 from rocrate.rocrate import ROCrate
 
@@ -134,6 +135,18 @@ def fixture_builder(crate: ROCrate) -> ROBuilder:
 
 
 @fixture
+def test_passphrase():
+    return "JosiahCarberry1929/13/09"
+
+
+@fixture()
+def test_gpg_object():
+    crate = ROCrate()
+    gpg = GPG(crate.gpg_binary)
+    return gpg
+
+
+@fixture
 def test_organization(
     test_ogranization_name: str,
     test_location: str,
@@ -191,7 +204,22 @@ def test_mytardis_metadata(
         sensitive=False,
         parent=test_datafile,
         mt_schema=test_metadata_schema,
+        pubkey_fingerprints=None,
     )
+
+
+@fixture
+def test_gpg_key(test_gpg_object: GPG, test_passphrase: str) -> GenKey:
+    key_input = test_gpg_object.gen_key_input(
+        key_type="RSA",
+        key_length=1024,
+        Passphrase=test_passphrase,
+        key_usage="sign encrypt",
+    )
+    key = test_gpg_object.gen_key(key_input)
+    yield key
+    test_gpg_object.delete_keys(key.fingerprint, True, passphrase=test_passphrase)
+    test_gpg_object.delete_keys(key.fingerprint, passphrase=test_passphrase)
 
 
 @fixture
@@ -202,6 +230,7 @@ def test_sensitive_metadata(
     test_metadata_id: str,
     test_metadata_schema: str,
     test_datafile: Datafile,
+    test_gpg_key: GenKey,
 ) -> MTMetadata:
     return MTMetadata(
         name=test_name,
@@ -210,6 +239,7 @@ def test_sensitive_metadata(
         sensitive=True,
         parent=test_datafile,
         mt_schema=test_metadata_schema,
+        pubkey_fingerprints=[test_gpg_key.fingerprint],
     )
 
 

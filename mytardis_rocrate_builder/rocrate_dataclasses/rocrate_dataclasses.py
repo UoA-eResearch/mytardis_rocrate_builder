@@ -461,7 +461,7 @@ class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass(kw_only=True)
-class MTMetadata(BaseObject):
+class MTMetadata(BaseObject):  # pylint: disable=too-many-instance-attributes
     """Concrete Metadata class for RO-crate
     Contains all information to store or recreate MyTardis metadata.
     Used as backup and recovery option.
@@ -492,6 +492,7 @@ class MTMetadata(BaseObject):
     mt_schema: Url
     sensitive: bool
     parent: MyTardisContextObject
+    pubkey_fingerprints: Optional[List[str]]
 
     def __post_init__(self) -> None:
         self.identifier = gen_uuid_id(
