@@ -58,7 +58,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     Returns:
         CrateManifest: the crate containing only the dataset and it's parents/children
     """
-    dataset = copy.deepcopy(dataset)
+    # dataset = copy.deepcopy(dataset)
     project_ids: set[str] = set()
     out_experiments: Dict[str, Experiment] = {}
     for experiment in dataset.experiments:
