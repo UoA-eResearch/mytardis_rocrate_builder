@@ -82,9 +82,9 @@ class ROBuilder:
         if value is None:
             return
         if isinstance(value, MyTardisContextObject):
-            value_entity = self.crate.dereference(value.id) or self.add_my_tardis_obj(
-                value
-            )
+            value_entity = self.crate.dereference(
+                value.roc_id
+            ) or self.add_my_tardis_obj(value)
             value = value_entity
         entity.append_to(label, value=value, compact=compact)
 
@@ -121,11 +121,11 @@ class ROBuilder:
         Returns:
             ContextEntity | None: the ACL as a context entity
         """
-        acl_entity = self.crate.dereference(acl.id) or self._add_acl_to_crate(acl)
+        acl_entity = self.crate.dereference(acl.roc_id) or self._add_acl_to_crate(acl)
         parent_entitiy = self.crate.dereference(
-            acl.parent.id
+            acl.parent.roc_id
         ) or self.add_my_tardis_obj(acl.parent)
-        if grantee_entity := self.crate.dereference(acl.grantee.id):
+        if grantee_entity := self.crate.dereference(acl.grantee.roc_id):
             pass
         else:
             match acl.grantee:
@@ -243,11 +243,11 @@ class ROBuilder:
             ROPerson: the user as an RO-Crate entity
         """
         user_entity: ROPerson = self.crate.dereference(
-            user.id
+            user.roc_id
         ) or self.__add_person_to_crate(user)
         if user.groups:
             for group in user.groups:
-                ro_group = self.crate.dereference(group.id) or self.add_group(group)
+                ro_group = self.crate.dereference(group.roc_id) or self.add_group(group)
                 ro_group.append_to("has_member", user_entity)
                 user_entity.append_to("groups", ro_group)
         self._add_optional_attr(user_entity, "permissions", user.permissions)
@@ -365,7 +365,7 @@ class ROBuilder:
         return self.crate.add(metadata)
 
     def _crate_contains_metadata(self, metadata: MTMetadata) -> ContextEntity | None:
-        if crate_metadata := self.crate.dereference(metadata.id):
+        if crate_metadata := self.crate.dereference(metadata.roc_id):
             if metadata.name == crate_metadata.get(
                 "name"
             ) and metadata.value == crate_metadata.get("value"):
@@ -390,7 +390,7 @@ class ROBuilder:
         if not metadata_obj:
             return None
         parent_obj = self.crate.dereference(
-            metadata.parent.id
+            metadata.parent.roc_id
         ) or self.add_my_tardis_obj(metadata.parent)
         metadata_obj.append_to("parents", parent_obj)
         parent_obj.append_to("metadata", metadata_obj)
@@ -500,7 +500,7 @@ class ROBuilder:
         project_obj.append_to("contributors", contributors)
         if project.institution:
             parent_organization = self.crate.dereference(
-                project.institution.id
+                project.institution.roc_id
             ) or self.__add_organisation(project.institution)
             project_obj.append_to("parentOrganization", parent_organization)
             parent_organization.append_to("Projects", project_obj)
@@ -518,9 +518,9 @@ class ROBuilder:
             project_obj, "end_time", serialize_optional_date(project.end_time), True
         )
         if project.created_by is not None:
-            creator = self.crate.dereference(project.created_by.id) or self.add_user(
-                project.created_by
-            )
+            creator = self.crate.dereference(
+                project.created_by.roc_id
+            ) or self.add_user(project.created_by)
             project_obj.append_to("createdBy", creator)
             creator.append_to("creator", project_obj)
             self._add_optional_attr(project_obj, "created_by", creator)
@@ -559,7 +559,7 @@ class ROBuilder:
         )
         if experiment.created_by:
             creator_entity = self.crate.dereference(
-                experiment.created_by.id
+                experiment.created_by.roc_id
             ) or self.add_user(experiment.created_by)
             experiment_entity.append_to("creator", creator_entity.id)
             creator_entity.append_to("created", experiment_entity.id)
@@ -572,7 +572,7 @@ class ROBuilder:
             lisence_id = experiment.sd_license
             if isinstance(experiment.sd_license, Lisence):
                 lisence_id = str(
-                    self.crate.dereference(experiment.sd_license).id
+                    self.crate.dereference(experiment.sd_license.roc_id).id
                     or self.add_lisence(experiment.sd_license).id
                 )
             experiment_entity.append_to("sdLicense", lisence_id)
@@ -589,7 +589,7 @@ class ROBuilder:
         # fits
         projects = []
         for project in experiment.projects:
-            if crate_project := self.crate.dereference("#" + str(project.id)):
+            if crate_project := self.crate.dereference(project.roc_id):
                 projects.append(crate_project)
             else:
                 projects.append(self.add_project(project))
@@ -619,7 +619,7 @@ class ROBuilder:
             )
         experiments = []
         for experiment in dataset.experiments:
-            if crate_experiment := self.crate.dereference("#" + str(experiment.id)):
+            if crate_experiment := self.crate.dereference(experiment.roc_id):
                 experiments.append(crate_experiment)
             else:
                 experiments.append(self.add_experiment(experiment))
@@ -632,7 +632,7 @@ class ROBuilder:
         if (
             dataset.instrument
             and isinstance(dataset.instrument, ContextObject)
-            and not self.crate.dereference(dataset.instrument.id)
+            and not self.crate.dereference(dataset.instrument.roc_id)
         ):
             instrument = self.add_instrument(dataset.instrument)
         properties = self._update_properties(data_object=dataset, properties=properties)
@@ -687,7 +687,7 @@ class ROBuilder:
             if self.crate.source and (self.crate.source / datafile.filepath).exists()
             else identifier
         )
-        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.id)
+        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.roc_id)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
 
@@ -752,7 +752,7 @@ class ROBuilder:
         }
         if facility.manager_group:
             manager_group = self.crate.dereference(
-                facility.manager_group.id
+                facility.manager_group.roc_id
             ) or self.add_group(facility.manager_group)
             properties["manager_group"] = manager_group.id
         properties = self._update_properties(facility, properties=properties)
@@ -772,7 +772,7 @@ class ROBuilder:
             ContextEntity: the instrument as an RO-Crate entity
         """
         facility_location = self.crate.dereference(
-            instrument.location.id
+            instrument.location.roc_id
         ) or self.add_facillity(instrument.location)
         properties: JsonProperties = {
             "@type": instrument.schema_type,
