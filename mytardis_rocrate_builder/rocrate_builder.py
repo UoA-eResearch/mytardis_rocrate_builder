@@ -85,7 +85,7 @@ class ROBuilder:
             value_entity = self.crate.dereference(value.id) or self.add_my_tardis_obj(
                 value
             )
-            value = value_entity.id
+            value = value_entity
         entity.append_to(label, value=value, compact=compact)
 
     def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
@@ -208,6 +208,13 @@ class ROBuilder:
         # Finally, if no orcid or UPI is found, use the first identifier
         # if not person_id:
         #     person_id = person.mt_identifiers[0]
+
+        person_obj = ROPerson(
+            self.crate,
+            person.id,
+            properties={"name": person.name, "email": person.email},
+        )
+
         if not any(
             (
                 entity.type in ["Organization", "ResearchOrganization"]
@@ -215,16 +222,9 @@ class ROBuilder:
             )
             for entity in self.crate.get_entities()
         ):
-            self.__add_organisation(person.affiliation)
-        person_obj = ROPerson(
-            self.crate,
-            person.id,
-            properties={
-                "name": person.name,
-                "email": person.email,
-                "affiliation": person.affiliation.id,
-            },
-        )
+            person_obj.append_to(
+                "affiliation", self.__add_organisation(person.affiliation)
+            )
         if len(person.mt_identifiers) > 1:
             for identifier in person.mt_identifiers:
                 if identifier != person_id:
@@ -248,8 +248,8 @@ class ROBuilder:
         if user.groups:
             for group in user.groups:
                 ro_group = self.crate.dereference(group.id) or self.add_group(group)
-                ro_group.append_to("has_member", user_entity.id)
-                user_entity.append_to("groups", ro_group.id)
+                ro_group.append_to("has_member", user_entity)
+                user_entity.append_to("groups", ro_group)
         self._add_optional_attr(user_entity, "permissions", user.permissions)
         self._add_optional_attr(
             user_entity, "isDjangoAccount", user.is_django_account, True
@@ -502,8 +502,8 @@ class ROBuilder:
             parent_organization = self.crate.dereference(
                 project.institution.id
             ) or self.__add_organisation(project.institution)
-            project_obj.append_to("parentOrganization", parent_organization.id)
-            parent_organization.append_to("Projects", project_obj.id)
+            project_obj.append_to("parentOrganization", parent_organization)
+            parent_organization.append_to("Projects", project_obj)
 
         self._add_optional_attr(
             project_obj,
@@ -521,9 +521,9 @@ class ROBuilder:
             creator = self.crate.dereference(project.created_by.id) or self.add_user(
                 project.created_by
             )
-            project_obj.append_to("createdBy", creator.id)
-            creator.append_to("creator", project_obj.id)
-            self._add_optional_attr(project_obj, "created_by", creator.id)
+            project_obj.append_to("createdBy", creator)
+            creator.append_to("creator", project_obj)
+            self._add_optional_attr(project_obj, "created_by", creator)
         self._add_optional_attr(project_obj, "url", project.url)
         return self._add_mt_identifiers(project, project_obj)
 
