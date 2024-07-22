@@ -349,7 +349,7 @@ def test_rocrate_datafile(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_filepath],
-            "dataset": crate.root_dataset.id,
+            "dataset": [{"@id": crate.root_dataset.id}],
             "version": 1.0,
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
