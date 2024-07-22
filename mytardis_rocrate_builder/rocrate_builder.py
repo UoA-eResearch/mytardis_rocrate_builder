@@ -690,7 +690,7 @@ class ROBuilder:
         dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.id)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
-        properties["dataset"] = dataset_obj.id
+
         destination_path = Path(dataset_obj.id) / datafile.filepath.relative_to(
             Path(dataset_obj.id)
         )
@@ -699,6 +699,7 @@ class ROBuilder:
             properties=properties,
             dest_path=destination_path,
         )
+        datafile_obj.append_to("dataset", dataset_obj)
         logger.info("Adding File to Crate %s", identifier)
         dataset_obj.append_to("hasPart", datafile_obj)
         return self._add_mt_identifiers(datafile, datafile_obj)
