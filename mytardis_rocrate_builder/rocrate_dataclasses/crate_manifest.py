@@ -98,8 +98,6 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
         ):
             outacls.append(acl)
 
-    _ = [df.update_to_root(dataset) for df in out_files]
-
     return CrateManifest(
         projcets=out_projects,
         experiments=out_experiments,

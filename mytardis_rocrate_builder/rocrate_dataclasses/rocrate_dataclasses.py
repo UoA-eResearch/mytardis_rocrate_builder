@@ -412,20 +412,20 @@ class Datafile(MyTardisContextObject):
         object.__setattr__(self, "identifier", self.filepath.as_posix())
         self.directory = self.dataset.directory
 
-    def update_to_root(self, dataset: Dataset) -> Path:
-        """Update a datafile that is a child of a dataset so that dataset is now the root
+    # def update_to_root(self, dataset: Dataset) -> Path:
+    #     """Update a datafile that is a child of a dataset so that dataset is now the root
 
-        Args:
-            dataset (Dataset): the dataset that is being updated to be root
-        """
-        self.dataset = dataset
-        try:
-            new_filepath = self.filepath.relative_to(dataset.directory)
-        except ValueError:
-            new_filepath = self.filepath
-        self.filepath = new_filepath
-        object.__setattr__(self, "identifier", self.filepath.as_posix())
-        return self.filepath
+    #     Args:
+    #         dataset (Dataset): the dataset that is being updated to be root
+    #     """
+    #     self.dataset = dataset
+    #     try:
+    #         new_filepath = self.filepath.relative_to(dataset.directory)
+    #     except ValueError:
+    #         new_filepath = self.filepath
+    #     self.filepath = new_filepath
+    #     object.__setattr__(self, "identifier", self.filepath.as_posix())
+    #     return self.filepath
 
 
 @dataclass(kw_only=True)
