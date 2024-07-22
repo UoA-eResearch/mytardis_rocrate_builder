@@ -328,7 +328,6 @@ class ROBuilder:
                     "value": metadata_obj.value,
                     "myTardis-type": metadata_obj.mt_type,
                     "sensitive": metadata_obj.sensitive,
-                    "parents": [metadata_obj.parent.id],
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
@@ -359,7 +358,6 @@ class ROBuilder:
                     "value": metadata_obj.value,
                     "myTardis-type": metadata_obj.mt_type,
                     "sensitive": metadata_obj.sensitive,
-                    "parents": [metadata_obj.parent.id],
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
