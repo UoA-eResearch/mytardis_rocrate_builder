@@ -58,7 +58,7 @@ def test_rocrate_metadata(
             "myTardis-type": test_metadata_type,
             "sensitive": False,
             "mytardis-schema": "http://rocrate.testing/project/1/schema",
-            "parents": [test_datafile.id],
+            "parents": [{"@id": test_datafile.id}],
         },
     )
 
@@ -83,7 +83,7 @@ def test_rocrate_sensitive_metadata(
             "myTardis-type": test_metadata_type,
             "sensitive": True,
             "mytardis-schema": "http://rocrate.testing/project/1/schema",
-            "parents": [test_datafile.id],
+            "parents": [{"@id": test_datafile.id}],
         },
     )
 
