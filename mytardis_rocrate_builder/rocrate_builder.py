@@ -102,7 +102,6 @@ class ROBuilder:
         properties = {
             "@type": acl.schema_type,
             "permission_type": acl.permission_type,
-            "grantee": acl.grantee.id,
             "grantee_type": acl.grantee_type,
             "my_tardis_can_download": acl.mytardis_can_download,
             "mytardis_owner": acl.mytardis_owner,
@@ -126,7 +125,7 @@ class ROBuilder:
         parent_obj = self.crate.dereference(acl.parent.id) or self.add_my_tardis_obj(
             acl.parent
         )
-        if grantee_entity := self.crate.dereference(acl_entity.get("grantee")):
+        if grantee_entity := self.crate.dereference(acl.grantee.id):
             pass
         else:
             match acl.grantee:
@@ -134,9 +133,10 @@ class ROBuilder:
                     grantee_entity = self.add_group(acl.grantee)
                 case Person():
                     grantee_entity = self.add_user(acl.grantee)
-        grantee_entity.append_to("granteeOf", acl_entity.id)
-        acl_entity.append_to("subjectOf", parent_obj.id)
-        parent_obj.append_to("hasDigitalDocumentPermission", acl.id)
+        grantee_entity.append_to("granteeOf", acl_entity)
+        acl_entity.append_to("subjectOf", parent_obj)
+        acl_entity.append_to("grantee", grantee_entity)
+        parent_obj.append_to("hasDigitalDocumentPermission", acl)
         return acl_entity
 
     def add_group(self, group: Group) -> ContextEntity:

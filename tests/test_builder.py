@@ -135,13 +135,13 @@ def test_crate_ACL(
         test_org_ACL.id,
         properties={
             "@type": "DigitalDocumentPermission",
-            "grantee": test_group.id,
+            "grantee": [{"@id": "#" + test_group.id}],
             "grantee_type": "Audiance",
             "permission_type": "ReadPermission",
             "mytardis_owner": True,
             "my_tardis_can_download": True,
             "mytardis_see_sensitive": False,
-            "subjectOf": ["data/testfile.txt"],
+            "subjectOf": [{"@id": "data/testfile.txt"}],
         },
     )
 
