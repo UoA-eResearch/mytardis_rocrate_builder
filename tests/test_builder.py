@@ -147,14 +147,14 @@ def test_crate_ACL(
 
 
 def test_add_metadata(builder, test_mytardis_metadata, test_rocrate_metadata) -> None:
-    crate_metadata = builder._add_metadata_to_crate(test_mytardis_metadata)
+    crate_metadata = builder.add_metadata(test_mytardis_metadata)
     assert crate_metadata.properties() == test_rocrate_metadata.properties()
 
 
 def test_add_sensitive_metadata(
     builder, test_sensitive_metadata, test_rocrate_sensitive_metadata
 ) -> None:
-    crate_metadata = builder._add_metadata_to_crate(test_sensitive_metadata)
+    crate_metadata = builder.add_metadata(test_sensitive_metadata)
     assert crate_metadata.get("recipients") is not None
     test_rocrate_sensitive_metadata.append_to(
         "recipients", crate_metadata.get("recipients")
