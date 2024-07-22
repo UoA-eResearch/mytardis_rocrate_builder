@@ -531,6 +531,7 @@ class ROBuilder:
         self,
         experiment: Experiment,
         properties: JsonProperties,
+        projects: List[ContextEntity],
     ) -> ContextEntity:
         """Update the metadata for an experiment and create the context entity for the experiment
 
@@ -575,6 +576,7 @@ class ROBuilder:
                     or self.add_lisence(experiment.sd_license).id
                 )
             experiment_entity.append_to("sdLicense", lisence_id)
+        experiment_entity.append_to("project", projects)
         return experiment_entity
 
     def add_experiment(self, experiment: Experiment) -> ContextEntity:
@@ -595,10 +597,9 @@ class ROBuilder:
             "@type": "DataCatalog",
             "name": experiment.name,
             "description": experiment.description,
-            "project": projects,
         }
         experiment_obj = self._update_experiment_meta(
-            experiment=experiment, properties=properties
+            experiment=experiment, properties=properties, projects=projects
         )
         return self._add_mt_identifiers(experiment, experiment_obj)
 
