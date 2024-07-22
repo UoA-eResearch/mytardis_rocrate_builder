@@ -99,7 +99,7 @@ def archive_crate(
         crate_location (Path): the path of the RO-Crate to be archived
     """
     if validate:
-        bag = bagit.Bag(crate_location)
+        bag = bagit.Bag(crate_location.as_posix())
         if not bag.is_valid():
             logger.warning("Bagit for crate is not valid!")
     if not archive_type:
@@ -158,7 +158,7 @@ def bulk_encrypt_file(
         data_to_encrypt (Path): the location of the file to encrypt
         output_path (Path): the desitnation of the output encrypted file
     """
-    gpg = GPG(binary=gpg_binary)
+    gpg = GPG(gpgbinary=gpg_binary)
     if data_to_encrypt.is_file():
         with open(data_to_encrypt, "rb") as f:
             status = gpg.encrypt(
