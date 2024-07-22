@@ -675,7 +675,7 @@ class ROBuilder:
             )
             datafile.mt_identifiers = [identifier] + datafile.mt_identifiers  # type: ignore
         properties: Dict[str, Any] = {
-            "name": datafile.name,
+            "name": str(datafile.name),
             "description": datafile.description,
             "version": datafile.version,
         }
