@@ -590,9 +590,9 @@ class ROBuilder:
         projects = []
         for project in experiment.projects:
             if crate_project := self.crate.dereference("#" + str(project.id)):
-                projects.append(crate_project.id)
+                projects.append(crate_project)
             else:
-                projects.append(self.add_project(project).id)
+                projects.append(self.add_project(project))
         properties: JsonProperties = {
             "@type": "DataCatalog",
             "name": experiment.name,
@@ -620,23 +620,21 @@ class ROBuilder:
         experiments = []
         for experiment in dataset.experiments:
             if crate_experiment := self.crate.dereference("#" + str(experiment.id)):
-                experiments.append(crate_experiment.id)
+                experiments.append(crate_experiment)
             else:
-                experiments.append(self.add_experiment(experiment).id)
+                experiments.append(self.add_experiment(experiment))
 
         properties: JsonProperties = {
             "name": dataset.name,
             "description": dataset.description,
-            "includedInDataCatalog": experiments,
         }
-        instrument_id = dataset.instrument.id
+        instrument = dataset.instrument
         if (
             dataset.instrument
             and isinstance(dataset.instrument, ContextObject)
             and not self.crate.dereference(dataset.instrument.id)
         ):
-            instrument_id = self.add_instrument(dataset.instrument).id
-        properties["instrument"] = str(instrument_id)
+            instrument = self.add_instrument(dataset.instrument)
         properties = self._update_properties(data_object=dataset, properties=properties)
 
         if identifier == ".":
@@ -654,6 +652,8 @@ class ROBuilder:
                 properties=properties,
                 dest_path=Path(directory),
             )
+        dataset_obj.append_to("includedInDataCatalog", experiments)
+        dataset_obj.append_to("instrument", instrument)
         return self._add_mt_identifiers(dataset, dataset_obj)
 
     def add_datafile(self, datafile: Datafile) -> DataEntity:
