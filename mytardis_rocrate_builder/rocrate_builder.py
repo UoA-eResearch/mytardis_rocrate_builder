@@ -338,11 +338,11 @@ class ROBuilder:
                     pubkey = PubkeyObject(
                         uids=recipent_key["uids"],
                         method=recipent_key["algo"],
-                        key=recipent_key["keyid"],
+                        key=fingerprint,
                     )
                 else:
                     pubkey = PubkeyObject(
-                        uids=[str(fingerprint)], key=[fingerprint], method="unknown"
+                        uids=[str(fingerprint)], key=fingerprint, method="unknown"
                     )
                 recipient = self.crate.add(
                     Keyholder(self.crate, pubkey_fingerprint=pubkey)
