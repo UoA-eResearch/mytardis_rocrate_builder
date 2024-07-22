@@ -483,12 +483,10 @@ class ROBuilder:
         if project.contributors:
             contributors = self.add_contributors(project.contributors)
 
-        properties = {
+        properties: Dict[str, str | list[str] | dict[str, Any]] = {
             "@type": "Project",
             "name": project.name,
             "description": project.description,
-            "principal_investigator": principal_investigator.id,
-            "contributors": [contributor.id for contributor in contributors],
         }
 
         properties = self._update_properties(data_object=project, properties=properties)
@@ -497,6 +495,9 @@ class ROBuilder:
             project.id,
             properties=properties,
         )
+
+        project_obj.append_to("principal_investigator", principal_investigator)
+        project_obj.append_to("contributors", contributors)
         if project.institution:
             parent_organization = self.crate.dereference(
                 project.institution.id
