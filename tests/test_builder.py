@@ -250,8 +250,8 @@ def test_ro_crate_project(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": ["Project"],
-            "principal_investigator": "#" + test_person.id,
-            "contributors": ["#" + test_person.id],
+            "principal_investigator": [{"@id": "#" + test_person.id}],
+            "contributors": [{"@id": "#" + test_person.id}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
