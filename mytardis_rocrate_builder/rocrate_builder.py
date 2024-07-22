@@ -122,9 +122,9 @@ class ROBuilder:
             ContextEntity | None: the ACL as a context entity
         """
         acl_entity = self.crate.dereference(acl.id) or self._add_acl_to_crate(acl)
-        parent_obj = self.crate.dereference(acl.parent.id) or self.add_my_tardis_obj(
-            acl.parent
-        )
+        parent_entitiy = self.crate.dereference(
+            acl.parent.id
+        ) or self.add_my_tardis_obj(acl.parent)
         if grantee_entity := self.crate.dereference(acl.grantee.id):
             pass
         else:
@@ -134,9 +134,9 @@ class ROBuilder:
                 case Person():
                     grantee_entity = self.add_user(acl.grantee)
         grantee_entity.append_to("granteeOf", acl_entity)
-        acl_entity.append_to("subjectOf", parent_obj)
+        acl_entity.append_to("subjectOf", parent_entitiy)
         acl_entity.append_to("grantee", grantee_entity)
-        parent_obj.append_to("hasDigitalDocumentPermission", acl)
+        parent_entitiy.append_to("hasDigitalDocumentPermission", acl_entity)
         return acl_entity
 
     def add_group(self, group: Group) -> ContextEntity:
@@ -392,8 +392,8 @@ class ROBuilder:
         parent_obj = self.crate.dereference(
             metadata.parent.id
         ) or self.add_my_tardis_obj(metadata.parent)
-        metadata_obj.append_to("parents", parent_obj.id)
-        parent_obj.append_to("metadata", metadata_obj.id)
+        metadata_obj.append_to("parents", parent_obj)
+        parent_obj.append_to("metadata", metadata_obj)
 
         return metadata_obj
 
