@@ -32,7 +32,7 @@ def test_rocrate_person(
         crate=ROCrate,
         identifier=test_person.id,
         properties={
-            "affiliation": test_organization.id,
+            "affiliation": [{"@id": "#" + test_organization.id}],
             "name": test_person_name,
             "email": test_email,
         },
@@ -167,7 +167,10 @@ def test_add_principal_investigator(
     test_person: Person,
     test_rocrate_person: ROPerson,
 ) -> None:
-    assert builder.add_principal_investigator(test_person) == test_rocrate_person
+    assert (
+        builder.add_principal_investigator(test_person).properties()
+        == test_rocrate_person.properties()
+    )
 
 
 def test_add_context_entity(
