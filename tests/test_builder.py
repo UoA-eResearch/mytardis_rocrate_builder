@@ -275,7 +275,7 @@ def test_ro_crate_experiment(
         crate,
         test_experiment.id,
         properties={
-            "project": [test_ro_crate_project.id],
+            "project": [{"@id": test_ro_crate_project.id}],
             "@type": "DataCatalog",
             "name": "experiment_name",
             "mt_identifiers": ["experiment"],
@@ -310,7 +310,7 @@ def test_ro_crate_dataset(
         fetch_remote=False,
         validate_url=False,
         properties={
-            "includedInDataCatalog": [test_ro_crate_experiment.id],
+            "includedInDataCatalog": [{"@id": test_ro_crate_experiment.id}],
             "@type": "Dataset",
             "name": "test_dataset",
             "description": test_description,
@@ -318,7 +318,7 @@ def test_ro_crate_dataset(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_directory.as_posix()],
-            "instrument": "#" + str(test_instrument.id),
+            "instrument": [{"@id": "#" + str(test_instrument.id)}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
