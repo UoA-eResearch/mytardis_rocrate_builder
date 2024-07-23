@@ -165,7 +165,7 @@ def bulk_encrypt_file(
                 f.read(),
                 recipients=pubkey_fingerprints,
                 armor=False,
-                output=output_path / ".gpg",
+                output=output_path.with_suffix(data_to_encrypt.suffix + ".gpg"),
             )
 
     else:
@@ -174,7 +174,7 @@ def bulk_encrypt_file(
                 f.read(),
                 recipients=pubkey_fingerprints,
                 armor=False,
-                output=output_path / ".tar.gpg",
+                output=output_path.with_suffix(data_to_encrypt.suffix + ".tar.gpg"),
             )
         logger.info("encrypt ok: %s", status.ok)
         logger.info("encrypt status: %s", status.status)
