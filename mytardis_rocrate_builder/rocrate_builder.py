@@ -148,14 +148,16 @@ class ROBuilder:
         Returns:
             ContextEntity: the group as an RO-Crate context object
         """
-        return ContextEntity(
-            crate=self.crate,
-            identifier=group.id,
-            properties={
-                "@type": group.schema_type,
-                "name": group.name,
-                "permissions": group.permissions,
-            },
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate,
+                identifier=group.id,
+                properties={
+                    "@type": group.schema_type,
+                    "name": group.name,
+                    "permissions": group.permissions,
+                },
+            )
         )
 
     def __add_organisation(self, organisation: Organisation) -> ContextEntity:
