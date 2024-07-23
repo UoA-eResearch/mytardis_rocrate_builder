@@ -309,6 +309,37 @@ class ROBuilder:
         self.crate.add(rocrate_obj)
         return rocrate_obj
 
+    def _add_pubkey_recipients(
+        self, pubkey_fingerprints: List[str], keyserver: Optional[str] = None
+    ) -> List[ContextEntity]:
+        gpg = GPG(self.crate.gpg_binary)
+        if keyserver:
+            result = gpg.recv_keys(keyserver, pubkey_fingerprints)
+            logger.info(
+                "Attempted to retreive public keys from %s, result %s",
+                keyserver,
+                result,
+            )
+        held_keys = gpg.list_keys()
+        recipients = []
+        for fingerprint in pubkey_fingerprints:
+            if recipent_key := held_keys.key_map.get(fingerprint):
+                pubkey = PubkeyObject(
+                    uids=recipent_key["uids"],
+                    method=recipent_key["algo"],
+                    key=fingerprint,
+                )
+            else:
+                pubkey = PubkeyObject(
+                    uids=[str(fingerprint)], key=fingerprint, method="unknown"
+                )
+            keyholder = Keyholder(self.crate, pubkey_fingerprint=pubkey)
+            recipient = self.crate.dereference(keyholder.id) or self.crate.add(
+                keyholder
+            )
+            recipients.append(recipient)
+        return recipients
+
     def _add_metadata_to_crate(self, metadata_obj: MTMetadata) -> ContextEntity | None:
         """Add a MyTardis Metadata object to the crate
 
@@ -331,23 +362,10 @@ class ROBuilder:
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
-            gpg = GPG(self.crate.gpg_binary)
-            held_keys = gpg.list_keys()
-            for fingerprint in metadata_obj.pubkey_fingerprints:
-                if recipent_key := held_keys.key_map.get(fingerprint):
-                    pubkey = PubkeyObject(
-                        uids=recipent_key["uids"],
-                        method=recipent_key["algo"],
-                        key=fingerprint,
-                    )
-                else:
-                    pubkey = PubkeyObject(
-                        uids=[str(fingerprint)], key=fingerprint, method="unknown"
-                    )
-                recipient = self.crate.add(
-                    Keyholder(self.crate, pubkey_fingerprint=pubkey)
-                )
-                metadata.append_to("recipients", recipient)
+            recipents = self._add_pubkey_recipients(
+                pubkey_fingerprints=metadata_obj.pubkey_fingerprints
+            )
+            metadata.append_to("recipients", recipents)
         else:
             metadata = ContextEntity(
                 self.crate,
@@ -361,7 +379,6 @@ class ROBuilder:
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
-
         return self.crate.add(metadata)
 
     def _crate_contains_metadata(self, metadata: MTMetadata) -> ContextEntity | None:
