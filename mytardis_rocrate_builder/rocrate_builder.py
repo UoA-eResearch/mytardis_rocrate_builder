@@ -6,13 +6,12 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from gnupg import GPG
+from rocrate.encryption_utils import NoValidKeysError
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.data_entity import DataEntity
 from rocrate.model.encryptedcontextentity import EncryptedContextEntity
-from rocrate.model.keyholder import Keyholder, PubkeyObject
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
@@ -76,6 +75,12 @@ class ROBuilder:
         self.crate = crate
         self.flatten_additional_properties = flatten_additional_properties
 
+    def dereference_or_add(
+        self, add_func: Callable[[ContextObject], ContextEntity], entity: ContextObject
+    ) -> ContextEntity:
+        """Return the entity if it exists within the crate otherwise add it"""
+        return self.crate.dereference(entity.roc_id) or add_func(entity)
+
     def _add_optional_attr(
         self, entity: ContextEntity, label: str, value: Any, compact: bool = False
     ) -> None:
@@ -88,7 +93,7 @@ class ROBuilder:
             value = value_entity
         entity.append_to(label, value=value, compact=compact)
 
-    def _add_acl_to_crate(self, acl: ACL) -> DataEntity:
+    def _add_acl_to_crate(self, acl: ACL) -> ContextEntity:
         """Add an individual ACL to the RO-Crate
 
         Args:
@@ -313,63 +318,37 @@ class ROBuilder:
         self.crate.add(rocrate_obj)
         return rocrate_obj
 
-    def _add_pubkey_recipients(
-        self, pubkey_fingerprints: List[str], keyserver: Optional[str] = None
-    ) -> List[ContextEntity]:
-        gpg = GPG(self.crate.gpg_binary)
-        if keyserver:
-            result = gpg.recv_keys(keyserver, pubkey_fingerprints)
-            logger.info(
-                "Attempted to retreive public keys from %s, result %s",
-                keyserver,
-                result,
-            )
-        held_keys = gpg.list_keys()
-        recipients = []
-        for fingerprint in pubkey_fingerprints:
-            if recipent_key := held_keys.key_map.get(fingerprint):
-                pubkey = PubkeyObject(
-                    uids=recipent_key["uids"],
-                    method=recipent_key["algo"],
-                    key=fingerprint,
-                )
-            else:
-                pubkey = PubkeyObject(
-                    uids=[str(fingerprint)], key=fingerprint, method="unknown"
-                )
-            keyholder = Keyholder(self.crate, pubkey_fingerprint=pubkey)
-            recipient = self.crate.dereference(keyholder.id) or self.crate.add(
-                keyholder
-            )
-            recipients.append(recipient)
-        return recipients
-
     def _add_metadata_to_crate(self, metadata_obj: MTMetadata) -> ContextEntity | None:
         """Add a MyTardis Metadata object to the crate
 
         Args:
             metadata_obj (MTMetadata): the MyTardis Metadata object
         """
-
         if metadata_obj.sensitive:
-            if not metadata_obj.pubkey_fingerprints:
-                return None
-            metadata = EncryptedContextEntity(
-                self.crate,
-                metadata_obj.id,
-                properties={
-                    "@type": MT_METADATA_SCHEMATYPE,
-                    "name": metadata_obj.name,
-                    "value": metadata_obj.value,
-                    "myTardis-type": metadata_obj.mt_type,
-                    "sensitive": metadata_obj.sensitive,
-                    "mytardis-schema": metadata_obj.mt_schema,
-                },
-            )
-            recipents = self._add_pubkey_recipients(
-                pubkey_fingerprints=metadata_obj.pubkey_fingerprints
-            )
-            metadata.append_to("recipients", recipents)
+            if metadata_obj.recipients is not None:
+                recipents = [
+                    self.crate.dereference(recipient.roc_id) or self.add_user(recipient)
+                    for recipient in metadata_obj.recipients
+                    if recipient.pubkey_fingerprints
+                ]
+                if len(recipents) < 1:
+                    raise NoValidKeysError(
+                        f"""No valid recipents with public keys for encrypted metadata:
+                        {metadata_obj.identifier}""",
+                    )
+                metadata = EncryptedContextEntity(
+                    self.crate,
+                    metadata_obj.id,
+                    properties={
+                        "@type": MT_METADATA_SCHEMATYPE,
+                        "name": metadata_obj.name,
+                        "value": metadata_obj.value,
+                        "myTardis-type": metadata_obj.mt_type,
+                        "sensitive": metadata_obj.sensitive,
+                        "mytardis-schema": metadata_obj.mt_schema,
+                    },
+                )
+                metadata.append_to("recipients", recipents)
         else:
             metadata = ContextEntity(
                 self.crate,
@@ -383,6 +362,7 @@ class ROBuilder:
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
+
         return self.crate.add(metadata)
 
     def _crate_contains_metadata(self, metadata: MTMetadata) -> ContextEntity | None:

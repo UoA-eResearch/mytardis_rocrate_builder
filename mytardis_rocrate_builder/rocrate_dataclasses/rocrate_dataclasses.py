@@ -523,7 +523,7 @@ class MTMetadata(BaseObject):  # pylint: disable=too-many-instance-attributes
     mt_schema: Url
     sensitive: bool
     parent: MyTardisContextObject
-    pubkey_fingerprints: Optional[List[str]]
+    recipients: Optional[List[User]] = None
 
     def __post_init__(self) -> None:
         self.identifier = gen_uuid_id(
