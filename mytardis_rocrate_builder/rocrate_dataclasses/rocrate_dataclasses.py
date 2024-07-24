@@ -60,7 +60,32 @@ Url = Annotated[
 
 
 @dataclass(kw_only=True)
-class Organisation:  # pylint: disable=too-many-instance-attributes
+class BaseObject(ABC):
+    """Abstract Most basic object that can be turned into an RO-Crate entity
+
+    Attr:
+        identifier (str): The identifier that will be used in the RO-Crate
+            Assigned based on UUID generation
+    """
+
+    identifier: str | int | float = Field(init=False, frozen=True)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", str(uuid.uuid4()))
+
+    @property
+    def id(self) -> str | int | float:
+        """syntatic sugar for id used in RO-Crate"""
+        return self.identifier
+
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
+
+
+@dataclass(kw_only=True)
+class Organisation(BaseObject):  # pylint: disable=too-many-instance-attributes
     # attributes to match organisations in MyTradis model
     """Dataclass to hold the details of an organisation for RO-Crate
 
@@ -85,19 +110,9 @@ class Organisation:  # pylint: disable=too-many-instance-attributes
     def __post_init__(self) -> None:
         self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.mt_identifiers)
 
-    @property
-    def id(self) -> str | int | float:
-        """Retrieve  uuid base on org name to act as RO-Crate ID"""
-        return self.identifier
-
-    @property
-    def roc_id(self) -> str:
-        "return Identifer formatted as RO-Crate string"
-        return f"#{self.id}"
-
 
 @dataclass(kw_only=True)
-class Group:
+class Group(BaseObject):
     """Dataclass to hold the details of a group for RO-Crate
 
     Attr:
@@ -115,19 +130,9 @@ class Group:
         )
         self.schema_type = "Audience"
 
-    @property
-    def id(self) -> str | int | float:
-        """Return the group name as the RO-Crate ID"""
-        return self.identifier
-
-    @property
-    def roc_id(self) -> str:
-        "return Identifer formatted as RO-Crate string"
-        return f"#{self.id}"
-
 
 @dataclass(kw_only=True)
-class Person:
+class Person(BaseObject):
     """Dataclass to hold the details of a person for RO-Crate
 
     Attr:
@@ -155,16 +160,6 @@ class Person:
         object.__setattr__(
             self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.name)
         )
-
-    @property
-    def id(self) -> str | int | float:
-        """Retrieve name (usually upi) RO-Crate ID"""
-        return self.identifier
-
-    @property
-    def roc_id(self) -> str:
-        "return Identifer formatted as RO-Crate string"
-        return f"#{self.id}"
 
 
 @dataclass(kw_only=True)
@@ -196,31 +191,6 @@ class User(Person):  # pylint: disable=too-many-instance-attributes
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
     pubkey_fingerprints: Optional[List[str]] = None
-
-
-@dataclass(kw_only=True)
-class BaseObject(ABC):
-    """Abstract Most basic object that can be turned into an RO-Crate entity
-
-    Attr:
-        identifier (str): The identifier that will be used in the RO-Crate
-            Assigned based on UUID generation
-    """
-
-    identifier: str | int | float = Field(init=False, frozen=True)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "identifier", str(uuid.uuid4()))
-
-    @property
-    def id(self) -> str | int | float:
-        """syntatic sugar for id used in RO-Crate"""
-        return self.identifier
-
-    @property
-    def roc_id(self) -> str:
-        "return Identifer formatted as RO-Crate string"
-        return f"#{self.id}"
 
 
 @dataclass(kw_only=True)
