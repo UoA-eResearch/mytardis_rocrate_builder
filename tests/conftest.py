@@ -26,6 +26,7 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
     Organisation,
     Person,
     Project,
+    User,
 )
 
 
@@ -184,6 +185,36 @@ def test_person(
 
 
 @fixture
+def test_gpg_key(test_gpg_object: GPG, test_passphrase: str) -> GenKey:
+    key_input = test_gpg_object.gen_key_input(
+        key_type="RSA",
+        key_length=1024,
+        Passphrase=test_passphrase,
+        key_usage="sign encrypt",
+    )
+    key = test_gpg_object.gen_key(key_input)
+    yield key
+    test_gpg_object.delete_keys(key.fingerprint, True, passphrase=test_passphrase)
+    test_gpg_object.delete_keys(key.fingerprint, passphrase=test_passphrase)
+
+
+@fixture
+def test_user(
+    test_person_name: str,
+    test_email: str,
+    test_organization: Organisation,
+    test_gpg_key: GenKey,
+):
+    return User(
+        name=test_person_name,
+        email=test_email,
+        affiliation=test_organization,
+        mt_identifiers=[test_person_name],
+        pubkey_fingerprints=[test_gpg_key.fingerprint],
+    )
+
+
+@fixture
 def test_base_object() -> BaseObject:
     return BaseObject()
 
@@ -204,22 +235,8 @@ def test_mytardis_metadata(
         sensitive=False,
         parent=test_datafile,
         mt_schema=test_metadata_schema,
-        pubkey_fingerprints=None,
+        recipients=None,
     )
-
-
-@fixture
-def test_gpg_key(test_gpg_object: GPG, test_passphrase: str) -> GenKey:
-    key_input = test_gpg_object.gen_key_input(
-        key_type="RSA",
-        key_length=1024,
-        Passphrase=test_passphrase,
-        key_usage="sign encrypt",
-    )
-    key = test_gpg_object.gen_key(key_input)
-    yield key
-    test_gpg_object.delete_keys(key.fingerprint, True, passphrase=test_passphrase)
-    test_gpg_object.delete_keys(key.fingerprint, passphrase=test_passphrase)
 
 
 @fixture
@@ -230,7 +247,7 @@ def test_sensitive_metadata(
     test_metadata_id: str,
     test_metadata_schema: str,
     test_datafile: Datafile,
-    test_gpg_key: GenKey,
+    test_user: User,
 ) -> MTMetadata:
     return MTMetadata(
         name=test_name,
@@ -239,7 +256,7 @@ def test_sensitive_metadata(
         sensitive=True,
         parent=test_datafile,
         mt_schema=test_metadata_schema,
-        pubkey_fingerprints=[test_gpg_key.fingerprint],
+        recipients=[test_user],
     )
 
 
