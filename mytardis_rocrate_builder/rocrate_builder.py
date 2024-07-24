@@ -269,6 +269,8 @@ class ROBuilder:
             user_entity.append_to(
                 "date_joined", serialize_optional_date(user.date_joined), True
             )
+        if user.pubkey_fingerprints:
+            user_entity.append_to("pubkey_fingerprints", user.pubkey_fingerprints)
         return user_entity
 
     def add_principal_investigator(self, principal_investigator: Person) -> ROPerson:
