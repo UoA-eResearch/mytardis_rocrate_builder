@@ -195,6 +195,7 @@ class User(Person):  # pylint: disable=too-many-instance-attributes
     is_superuser: Optional[bool] = None
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
+    pubkey_fingerprints: Optional[List[str]] = None
 
 
 @dataclass(kw_only=True)
