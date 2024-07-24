@@ -109,7 +109,7 @@ def archive_crate(
             logger.info("Tar GZIP archiving %s", crate_location.name)
             with tarfile.open(
                 output_location.parent / (output_location.name + ".tar.gz"),
-                mode="w:bz2",
+                mode="w:gz",
             ) as out_tar:
                 out_tar.add(
                     crate_location,
