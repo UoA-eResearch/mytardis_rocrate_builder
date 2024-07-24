@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import AfterValidator, Field, PlainSerializer, WithJsonSchema
 from slugify import slugify
@@ -90,6 +90,11 @@ class Organisation:  # pylint: disable=too-many-instance-attributes
         """Retrieve  uuid base on org name to act as RO-Crate ID"""
         return self.identifier
 
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
+
 
 @dataclass(kw_only=True)
 class Group:
@@ -114,6 +119,11 @@ class Group:
     def id(self) -> str | int | float:
         """Return the group name as the RO-Crate ID"""
         return self.identifier
+
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
 
 
 @dataclass(kw_only=True)
@@ -150,6 +160,11 @@ class Person:
     def id(self) -> str | int | float:
         """Retrieve name (usually upi) RO-Crate ID"""
         return self.identifier
+
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
 
 
 @dataclass(kw_only=True)
@@ -201,6 +216,11 @@ class BaseObject(ABC):
         """syntatic sugar for id used in RO-Crate"""
         return self.identifier
 
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
+
 
 @dataclass(kw_only=True)
 class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
@@ -220,11 +240,11 @@ class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
 
     name: str
     description: str
-    mt_identifiers: List[str | int | float]
+    mt_identifiers: Optional[List[str | int | float]] = None
     date_created: Optional[datetime] = None
     date_modified: Optional[List[datetime]] = None
     additional_properties: Optional[Dict[str, Any]] = None
-    schema_type: Optional[str | List[str]] = Field(init=False)
+    schema_type: Union[str, List[str]] = Field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "identifier", gen_uuid_id(self.name))
@@ -259,8 +279,11 @@ class Facility(MyTardisContextObject):
         manager_group (Group): the group that manages this facillity
     """
 
-    manager_group: Group
-    schema_type = ["Place"]
+    manager_group: Optional[Group] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Place"
 
 
 @dataclass(kw_only=True)
@@ -270,7 +293,10 @@ class Instrument(MyTardisContextObject):
         location (Facility): the facility this instrument is located at"""
 
     location: Facility
-    schema_type = ["Instrument", "Thing"]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Instrument"
 
 
 @dataclass(kw_only=True)
@@ -383,6 +409,11 @@ class Dataset(MyTardisContextObject):
         self.schema_type = "Dataset"
         object.__setattr__(self, "identifier", self.directory.as_posix())
 
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted for RO-Crate, for datasets this is simply path"
+        return str(self.id)
+
 
 @dataclass(kw_only=True)
 class Datafile(MyTardisContextObject):
@@ -406,20 +437,25 @@ class Datafile(MyTardisContextObject):
         object.__setattr__(self, "identifier", self.filepath.as_posix())
         self.directory = self.dataset.directory
 
-    def update_to_root(self, dataset: Dataset) -> Path:
-        """Update a datafile that is a child of a dataset so that dataset is now the root
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted for RO-Crate, for datafiles this is simply path"
+        return str(self.id)
 
-        Args:
-            dataset (Dataset): the dataset that is being updated to be root
-        """
-        self.dataset = dataset
-        try:
-            new_filepath = self.filepath.relative_to(dataset.directory)
-        except ValueError:
-            new_filepath = self.filepath
-        self.filepath = new_filepath
-        object.__setattr__(self, "identifier", self.filepath.as_posix())
-        return self.filepath
+    # def update_to_root(self, dataset: Dataset) -> Path:
+    #     """Update a datafile that is a child of a dataset so that dataset is now the root
+
+    #     Args:
+    #         dataset (Dataset): the dataset that is being updated to be root
+    #     """
+    #     self.dataset = dataset
+    #     try:
+    #         new_filepath = self.filepath.relative_to(dataset.directory)
+    #     except ValueError:
+    #         new_filepath = self.filepath
+    #     self.filepath = new_filepath
+    #     object.__setattr__(self, "identifier", self.filepath.as_posix())
+    #     return self.filepath
 
 
 @dataclass(kw_only=True)
@@ -455,7 +491,7 @@ class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
 
 
 @dataclass(kw_only=True)
-class MTMetadata(BaseObject):
+class MTMetadata(BaseObject):  # pylint: disable=too-many-instance-attributes
     """Concrete Metadata class for RO-crate
     Contains all information to store or recreate MyTardis metadata.
     Used as backup and recovery option.
@@ -486,6 +522,7 @@ class MTMetadata(BaseObject):
     mt_schema: Url
     sensitive: bool
     parent: MyTardisContextObject
+    pubkey_fingerprints: Optional[List[str]]
 
     def __post_init__(self) -> None:
         self.identifier = gen_uuid_id(

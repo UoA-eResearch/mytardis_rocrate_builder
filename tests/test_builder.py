@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+from gnupg import GenKey
 from pytest import fixture
 from rocrate.model.contextentity import ContextEntity as ROContextEntity
 from rocrate.model.dataset import Dataset as RODataset
@@ -31,7 +32,7 @@ def test_rocrate_person(
         crate=ROCrate,
         identifier=test_person.id,
         properties={
-            "affiliation": test_organization.id,
+            "affiliation": [{"@id": "#" + test_organization.id}],
             "name": test_person_name,
             "email": test_email,
         },
@@ -57,7 +58,32 @@ def test_rocrate_metadata(
             "myTardis-type": test_metadata_type,
             "sensitive": False,
             "mytardis-schema": "http://rocrate.testing/project/1/schema",
-            "parents": [test_datafile.id],
+            "parents": [{"@id": test_datafile.id}],
+        },
+    )
+
+
+@fixture
+def test_rocrate_sensitive_metadata(
+    test_name: str,
+    test_metadata_value: str,
+    test_metadata_type: str,
+    crate: ROCrate,
+    test_datafile: Datafile,
+    test_mytardis_metadata: MTMetadata,
+    test_gpg_key: GenKey,
+) -> ROContextEntity:
+    return ROContextEntity(
+        crate,
+        test_mytardis_metadata.id,
+        properties={
+            "@type": MT_METADATA_SCHEMATYPE,
+            "name": test_name,
+            "value": test_metadata_value,
+            "myTardis-type": test_metadata_type,
+            "sensitive": True,
+            "mytardis-schema": "http://rocrate.testing/project/1/schema",
+            "parents": [{"@id": test_datafile.id}],
         },
     )
 
@@ -109,20 +135,31 @@ def test_crate_ACL(
         test_org_ACL.id,
         properties={
             "@type": "DigitalDocumentPermission",
-            "grantee": test_group.id,
+            "grantee": [{"@id": "#" + test_group.id}],
             "grantee_type": "Audiance",
             "permission_type": "ReadPermission",
             "mytardis_owner": True,
             "my_tardis_can_download": True,
             "mytardis_see_sensitive": False,
-            "subjectOf": ["data/testfile.txt"],
+            "subjectOf": [{"@id": "data/testfile.txt"}],
         },
     )
 
 
 def test_add_metadata(builder, test_mytardis_metadata, test_rocrate_metadata) -> None:
-    crate_metadata = builder._add_metadata_to_crate(test_mytardis_metadata)
+    crate_metadata = builder.add_metadata(test_mytardis_metadata)
     assert crate_metadata.properties() == test_rocrate_metadata.properties()
+
+
+def test_add_sensitive_metadata(
+    builder, test_sensitive_metadata, test_rocrate_sensitive_metadata
+) -> None:
+    crate_metadata = builder.add_metadata(test_sensitive_metadata)
+    assert crate_metadata.get("recipients") is not None
+    test_rocrate_sensitive_metadata.append_to(
+        "recipients", crate_metadata.get("recipients")
+    )
+    assert crate_metadata.properties() == test_rocrate_sensitive_metadata.properties()
 
 
 def test_add_principal_investigator(
@@ -130,7 +167,10 @@ def test_add_principal_investigator(
     test_person: Person,
     test_rocrate_person: ROPerson,
 ) -> None:
-    assert builder.add_principal_investigator(test_person) == test_rocrate_person
+    assert (
+        builder.add_principal_investigator(test_person).properties()
+        == test_rocrate_person.properties()
+    )
 
 
 def test_add_context_entity(
@@ -213,8 +253,8 @@ def test_ro_crate_project(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": ["Project"],
-            "principal_investigator": "#" + test_person.id,
-            "contributors": ["#" + test_person.id],
+            "principal_investigator": [{"@id": "#" + test_person.id}],
+            "contributors": [{"@id": "#" + test_person.id}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
@@ -238,7 +278,7 @@ def test_ro_crate_experiment(
         crate,
         test_experiment.id,
         properties={
-            "project": [test_ro_crate_project.id],
+            "project": [{"@id": test_ro_crate_project.id}],
             "@type": "DataCatalog",
             "name": "experiment_name",
             "mt_identifiers": ["experiment"],
@@ -273,7 +313,7 @@ def test_ro_crate_dataset(
         fetch_remote=False,
         validate_url=False,
         properties={
-            "includedInDataCatalog": [test_ro_crate_experiment.id],
+            "includedInDataCatalog": [{"@id": test_ro_crate_experiment.id}],
             "@type": "Dataset",
             "name": "test_dataset",
             "description": test_description,
@@ -281,7 +321,7 @@ def test_ro_crate_dataset(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_directory.as_posix()],
-            "instrument": "#" + test_instrument.id,
+            "instrument": [{"@id": "#" + str(test_instrument.id)}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,
@@ -312,7 +352,7 @@ def test_rocrate_datafile(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "mt_identifiers": [test_filepath],
-            "dataset": crate.root_dataset.id,
+            "dataset": [{"@id": crate.root_dataset.id}],
             "version": 1.0,
             "mytardis_classification": "DataClassification.SENSITIVE",
         }

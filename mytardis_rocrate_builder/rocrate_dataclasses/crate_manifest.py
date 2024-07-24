@@ -19,6 +19,7 @@ class CrateManifest:
         datafiles: Optional[List[Datafile]] = None,
         metadata: Optional[List[MTMetadata]] = None,
         acls: Optional[List[ACL]] = None,
+        identifier: Optional[str] = None,
     ):
         self.projcets = projcets or {}
         self.experiments = experiments or {}
@@ -26,6 +27,7 @@ class CrateManifest:
         self.datafiles = datafiles or []
         self.metadata = metadata or []
         self.acls = acls or []
+        self.identifier = identifier or ""
 
     def add_projects(self, projcets: Dict[str, Project]) -> None:
         self.projcets = self.projcets | projcets
@@ -56,7 +58,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     Returns:
         CrateManifest: the crate containing only the dataset and it's parents/children
     """
-    dataset = copy.deepcopy(dataset)
+    # dataset = copy.deepcopy(dataset)
     project_ids: set[str] = set()
     out_experiments: Dict[str, Experiment] = {}
     for experiment in dataset.experiments:
@@ -72,14 +74,14 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     out_files = [
         copy.deepcopy(datafile)
         for datafile in in_manifest.datafiles
-        if datafile.dataset.directory == dataset.directory
+        if datafile.dataset is dataset
     ]
     out_file_ids = (outfile.id for outfile in out_files)
     outmetadata = []
     for metadata in in_manifest.metadata:
         parent_id = metadata.parent.id
         if (
-            parent_id == dataset.id
+            metadata.parent is dataset
             or parent_id in out_experiments
             or parent_id in out_projects
             or parent_id in out_file_ids
@@ -89,14 +91,12 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
     for acl in in_manifest.acls:
         parent_id = acl.parent.id
         if (
-            parent_id == dataset.id
+            acl.parent is dataset
             or parent_id in out_experiments
             or parent_id in out_projects
             or parent_id in out_file_ids
         ):
             outacls.append(acl)
-
-    _ = [df.update_to_root(dataset) for df in out_files]
 
     return CrateManifest(
         projcets=out_projects,
@@ -105,4 +105,5 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
         datafiles=out_files,
         metadata=outmetadata,
         acls=outacls,
+        identifier=f"{in_manifest.identifier}{dataset.name}",
     )

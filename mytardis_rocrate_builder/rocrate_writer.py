@@ -99,7 +99,7 @@ def archive_crate(
         crate_location (Path): the path of the RO-Crate to be archived
     """
     if validate:
-        bag = bagit.Bag(crate_location)
+        bag = bagit.Bag(crate_location.as_posix())
         if not bag.is_valid():
             logger.warning("Bagit for crate is not valid!")
     if not archive_type:
@@ -109,7 +109,7 @@ def archive_crate(
             logger.info("Tar GZIP archiving %s", crate_location.name)
             with tarfile.open(
                 output_location.parent / (output_location.name + ".tar.gz"),
-                mode="w:bz2",
+                mode="w:gz",
             ) as out_tar:
                 out_tar.add(
                     crate_location,
@@ -158,14 +158,14 @@ def bulk_encrypt_file(
         data_to_encrypt (Path): the location of the file to encrypt
         output_path (Path): the desitnation of the output encrypted file
     """
-    gpg = GPG(binary=gpg_binary)
+    gpg = GPG(gpgbinary=gpg_binary)
     if data_to_encrypt.is_file():
         with open(data_to_encrypt, "rb") as f:
             status = gpg.encrypt(
                 f.read(),
                 recipients=pubkey_fingerprints,
                 armor=False,
-                output=output_path / ".gpg",
+                output=output_path.with_suffix(data_to_encrypt.suffix + ".gpg"),
             )
 
     else:
@@ -174,7 +174,7 @@ def bulk_encrypt_file(
                 f.read(),
                 recipients=pubkey_fingerprints,
                 armor=False,
-                output=output_path / ".tar.gpg",
+                output=output_path.with_suffix(data_to_encrypt.suffix + ".tar.gpg"),
             )
         logger.info("encrypt ok: %s", status.ok)
         logger.info("encrypt status: %s", status.status)
