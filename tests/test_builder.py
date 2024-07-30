@@ -3,6 +3,7 @@
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
+from unittest.mock import patch
 
 from gnupg import GenKey
 from pytest import fixture
@@ -12,13 +13,19 @@ from rocrate.model.file import File as RODataFile
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from mytardis_rocrate_builder.rocrate_builder import MT_METADATA_SCHEMATYPE, ROBuilder
+from mytardis_rocrate_builder.rocrate_builder import (
+    MT_METADATA_SCHEMATYPE,
+    ROBuilder,
+    serialize_optional_date,
+)
 from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
     ACL,
     Datafile,
     Dataset,
     MTMetadata,
     Person,
+    Project,
+    User,
     gen_uuid_id,
     generate_pedd_name,
 )
@@ -26,11 +33,16 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
 
 @fixture
 def test_rocrate_person(
-    test_person_name, test_email, test_organization, crate: ROCrate, test_person: Person
+    test_person_name,
+    test_email,
+    test_organization,
+    crate: ROCrate,
+    test_person: Person,
+    test_upi: str,
 ) -> ROPerson:
     return ROPerson(
         crate=ROCrate,
-        identifier=test_person.id,
+        identifier=test_upi,
         properties={
             "affiliation": [{"@id": "#" + test_organization.id}],
             "name": test_person_name,
@@ -80,6 +92,7 @@ def test_rocrate_sensitive_metadata(
             "@type": MT_METADATA_SCHEMATYPE,
             "name": test_name,
             "value": test_metadata_value,
+            "ToBeEncrypted": True,
             "myTardis-type": test_metadata_type,
             "sensitive": True,
             "mytardis-schema": "http://rocrate.testing/project/1/schema",
@@ -90,7 +103,7 @@ def test_rocrate_sensitive_metadata(
 
 @fixture
 def ro_date(test_datatime):
-    return test_datatime.isoformat()
+    return serialize_optional_date(test_datatime)
 
 
 @fixture
@@ -144,6 +157,61 @@ def test_crate_ACL(
             "subjectOf": [{"@id": "data/testfile.txt"}],
         },
     )
+
+
+@fixture
+def test_crate_user_ACL(
+    test_user,
+    test_ogranization_type,
+    test_description,
+    test_datatime,
+    test_extra_properties,
+    crate: ROCrate,
+    ro_date,
+    test_person_ACL,
+) -> ROContextEntity:
+    return ROContextEntity(
+        crate,
+        test_person_ACL.id,
+        properties={
+            "@type": "DigitalDocumentPermission",
+            "grantee": [{"@id": "#" + test_user.id}],
+            "grantee_type": "Person",
+            "permission_type": "ReadPermission",
+            "mytardis_owner": False,
+            "my_tardis_can_download": False,
+            "mytardis_see_sensitive": False,
+            "subjectOf": [{"@id": "data/testfile.txt"}],
+        },
+    )
+
+
+@patch("rocrate.rocrate.ROCrate.dereference")
+@patch("mytardis_rocrate_builder.rocrate_builder.ROBuilder.add_project")
+def test_dereference_or_add(
+    mocked_add, mocked_deref, builder: ROBuilder, test_project: Project
+):
+    # check that deref or assert only creates the object if deref returns None
+    project = builder.dereference_or_add(builder.add_project, test_project)
+    mocked_deref.assert_called_once()
+    mocked_deref.return_value = None
+    project = builder.dereference_or_add(builder.add_project, test_project)
+    mocked_add.assert_called_once()
+
+
+def test_optional_add(
+    builder: ROBuilder,
+    test_ro_crate_project: ROContextEntity,
+    test_rocrate_context_entity: ROContextEntity,
+):
+    builder._add_optional_attr(
+        test_rocrate_context_entity, "additional project", test_ro_crate_project
+    )
+    assert test_ro_crate_project.id in test_rocrate_context_entity.get(
+        "additional project"
+    )
+    builder._add_optional_attr(test_rocrate_context_entity, "empty value", None)
+    assert test_rocrate_context_entity.get("empty value") is None
 
 
 def test_add_metadata(builder, test_mytardis_metadata, test_rocrate_metadata) -> None:
@@ -203,9 +271,19 @@ def test_add_contributors(
 
 
 def test_add_acl(
-    builder: ROBuilder, test_org_ACL: ACL, test_crate_ACL: ROContextEntity
+    builder: ROBuilder,
+    test_org_ACL: ACL,
+    test_crate_ACL: ROContextEntity,
+    test_person_ACL: ACL,
+    test_user: User,
+    test_crate_user_ACL: ROContextEntity,
 ) -> None:
     assert test_crate_ACL.properties() == builder.add_acl(test_org_ACL).properties()
+    test_crate_ACL.properties()["grantee"] = [{"@id": "#" + test_user.id}]
+    assert (
+        test_crate_user_ACL.properties()
+        == builder.add_acl(test_person_ACL).properties()
+    )
 
 
 def test_adda_additional_properites(
@@ -241,6 +319,7 @@ def test_ro_crate_project(
     crate,
     test_project,
     test_organization,
+    test_upi,
 ) -> None:
     return ROContextEntity(
         crate,
@@ -252,9 +331,9 @@ def test_ro_crate_project(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
-            "mt_identifiers": ["Project"],
-            "principal_investigator": [{"@id": "#" + test_person.id}],
-            "contributors": [{"@id": "#" + test_person.id}],
+            "mt_identifiers": ["Project", "Project_name"],
+            "principal_investigator": [{"@id": "#" + test_upi}],
+            "contributors": [{"@id": "#" + test_upi}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
         | test_extra_properties,

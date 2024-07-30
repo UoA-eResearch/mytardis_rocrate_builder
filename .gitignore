@@ -5,3 +5,4 @@ pytest.xml
 .env
 .vscode/*
 .mypy_cache/
+.coverage

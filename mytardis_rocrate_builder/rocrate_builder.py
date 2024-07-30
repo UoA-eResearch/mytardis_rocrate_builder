@@ -6,7 +6,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Self
 
 from rocrate.encryption_utils import NoValidKeysError
 from rocrate.model.contextentity import ContextEntity
@@ -17,6 +17,7 @@ from rocrate.rocrate import ROCrate
 
 from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     ACL,
+    BaseObject,
     ContextObject,
     Datafile,
     Dataset,
@@ -76,10 +77,18 @@ class ROBuilder:
         self.flatten_additional_properties = flatten_additional_properties
 
     def dereference_or_add(
-        self, add_func: Callable[[ContextObject], ContextEntity], entity: ContextObject
-    ) -> ContextEntity:
+        self,
+        add_func: Callable[[Self, BaseObject], ContextEntity],
+        added_object: BaseObject,
+    ) -> Any:
         """Return the entity if it exists within the crate otherwise add it"""
-        return self.crate.dereference(entity.roc_id) or add_func(entity)
+
+        def wrapper(added_object: BaseObject) -> ContextEntity:
+            return self.crate.dereference(added_object.roc_id) or add_func(
+                self, added_object
+            )
+
+        return wrapper(added_object)
 
     def _add_optional_attr(
         self, entity: ContextEntity, label: str, value: Any, compact: bool = False
@@ -198,6 +207,7 @@ class ROBuilder:
         Args:
             person (Person): the person to add to the crate
         """
+
         # orcid_regex = re.compile(
         #     r"https://orcid\.org/[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]{1}"
         # )
@@ -215,10 +225,9 @@ class ROBuilder:
         # Finally, if no orcid or UPI is found, use the first identifier
         # if not person_id:
         #     person_id = person.mt_identifiers[0]
-
         person_obj = ROPerson(
             self.crate,
-            person.id,
+            person_id,
             properties={"name": person.name, "email": person.email},
         )
 
