@@ -6,7 +6,8 @@ from typing import Any, Dict
 from unittest.mock import patch
 
 from gnupg import GenKey
-from pytest import fixture
+from pytest import fixture, raises
+from rocrate.encryption_utils import NoValidKeysError
 from rocrate.model.contextentity import ContextEntity as ROContextEntity
 from rocrate.model.dataset import Dataset as RODataset
 from rocrate.model.file import File as RODataFile
@@ -201,15 +202,15 @@ def test_dereference_or_add(
 
 def test_optional_add(
     builder: ROBuilder,
-    test_ro_crate_project: ROContextEntity,
+    test_project: Project,
     test_rocrate_context_entity: ROContextEntity,
 ):
     builder._add_optional_attr(
-        test_rocrate_context_entity, "additional project", test_ro_crate_project
+        test_rocrate_context_entity, "additional project", test_project
     )
-    assert test_ro_crate_project.id in test_rocrate_context_entity.get(
-        "additional project"
-    )
+    assert [
+        {"@id": "#" + test_project.id}
+    ] == test_rocrate_context_entity.properties().get("additional project")
     builder._add_optional_attr(test_rocrate_context_entity, "empty value", None)
     assert test_rocrate_context_entity.get("empty value") is None
 
@@ -228,6 +229,20 @@ def test_add_sensitive_metadata(
         "recipients", crate_metadata.get("recipients")
     )
     assert crate_metadata.properties() == test_rocrate_sensitive_metadata.properties()
+
+
+def test_no_recipents_failure(
+    builder, test_sensitive_metadata, test_rocrate_sensitive_metadata, test_user
+) -> None:
+    with raises(NoValidKeysError):  # test recipients without keys
+        test_user.pubkey_fingerprints = None
+        builder.add_metadata(test_sensitive_metadata)
+    with raises(NoValidKeysError):  # test recipients missing
+        test_sensitive_metadata.recipients = None
+        builder.add_metadata(test_sensitive_metadata)
+    with raises(NoValidKeysError):  # test recipients empty
+        test_sensitive_metadata.recipients = []
+        builder.add_metadata(test_sensitive_metadata)
 
 
 def test_add_principal_investigator(
@@ -399,7 +414,6 @@ def test_ro_crate_dataset(
             "dateCreated": ro_date,
             "dateModified": [ro_date],
             "datePublished": ro_date,
-            "mt_identifiers": [test_directory.as_posix()],
             "instrument": [{"@id": "#" + str(test_instrument.id)}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
