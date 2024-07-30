@@ -101,6 +101,11 @@ def test_schema_type() -> str:
 
 
 @fixture
+def test_upi() -> str:
+    return "jbon007"
+
+
+@fixture
 def test_ogranization_type() -> str:
     return "Organization"
 
@@ -174,13 +179,16 @@ def test_metadata_schema() -> str:
 
 @fixture
 def test_person(
-    test_person_name: str, test_email: str, test_organization: Organisation
+    test_person_name: str,
+    test_email: str,
+    test_organization: Organisation,
+    test_upi: str,
 ):
     return Person(
         name=test_person_name,
         email=test_email,
         affiliation=test_organization,
-        mt_identifiers=[test_person_name],
+        mt_identifiers=[test_upi],
     )
 
 
@@ -322,7 +330,7 @@ def test_org_ACL(
     test_datafile,
 ) -> ACL:
     return ACL(
-        name="test_acl",
+        name="test_audiance_acl",
         grantee=test_group,
         grantee_type="Audiance",
         mytardis_owner=True,
@@ -334,15 +342,16 @@ def test_org_ACL(
 
 @fixture
 def test_person_ACL(
-    test_person,
+    test_user,
     test_person_type,
     test_description,
     test_datatime,
     test_extra_properties,
+    test_datafile,
 ) -> ACL:
     return ACL(
-        name="test_acl",
-        grantee=test_person,
+        name="test_person_acl",
+        grantee=test_user,
         grantee_type="Person",
         mytardis_owner=False,
         mytardis_can_download=False,
@@ -392,7 +401,7 @@ def test_project(
     return Project(
         name="Project_name",
         description=test_description,
-        mt_identifiers=["Project"],
+        mt_identifiers=["Project", "Project_name"],
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
