@@ -100,6 +100,8 @@ class ROBuilder:
                 value.roc_id
             ) or self.add_my_tardis_obj(value)
             value = value_entity
+            entity.append_to(label, value=value, compact=compact)
+            return
         entity.append_to(label, value=value, compact=compact)
 
     def _add_acl_to_crate(self, acl: ACL) -> ContextEntity:
@@ -334,30 +336,34 @@ class ROBuilder:
             metadata_obj (MTMetadata): the MyTardis Metadata object
         """
         if metadata_obj.sensitive:
-            if metadata_obj.recipients is not None:
-                recipents = [
-                    self.crate.dereference(recipient.roc_id) or self.add_user(recipient)
-                    for recipient in metadata_obj.recipients
-                    if recipient.pubkey_fingerprints
-                ]
-                if len(recipents) < 1:
-                    raise NoValidKeysError(
-                        f"""No valid recipents with public keys for encrypted metadata:
+            if metadata_obj.recipients is None:
+                raise NoValidKeysError(
+                    f"""No recipents found for encrypted metadata:
                         {metadata_obj.identifier}""",
-                    )
-                metadata = EncryptedContextEntity(
-                    self.crate,
-                    metadata_obj.id,
-                    properties={
-                        "@type": MT_METADATA_SCHEMATYPE,
-                        "name": metadata_obj.name,
-                        "value": metadata_obj.value,
-                        "myTardis-type": metadata_obj.mt_type,
-                        "sensitive": metadata_obj.sensitive,
-                        "mytardis-schema": metadata_obj.mt_schema,
-                    },
                 )
-                metadata.append_to("recipients", recipents)
+            recipents = [
+                self.crate.dereference(recipient.roc_id) or self.add_user(recipient)
+                for recipient in metadata_obj.recipients
+                if recipient.pubkey_fingerprints
+            ]
+            if len(recipents) < 1:
+                raise NoValidKeysError(
+                    f"""No valid recipents with public keys for encrypted metadata:
+                    {metadata_obj.identifier}""",
+                )
+            metadata = EncryptedContextEntity(
+                self.crate,
+                metadata_obj.id,
+                properties={
+                    "@type": MT_METADATA_SCHEMATYPE,
+                    "name": metadata_obj.name,
+                    "value": metadata_obj.value,
+                    "myTardis-type": metadata_obj.mt_type,
+                    "sensitive": metadata_obj.sensitive,
+                    "mytardis-schema": metadata_obj.mt_schema,
+                },
+            )
+            metadata.append_to("recipients", recipents)
         else:
             metadata = ContextEntity(
                 self.crate,

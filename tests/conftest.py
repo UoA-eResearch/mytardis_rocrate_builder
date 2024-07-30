@@ -212,6 +212,8 @@ def test_user(
     test_email: str,
     test_organization: Organisation,
     test_gpg_key: GenKey,
+    test_group: Group,
+    test_datatime: test_datatime,
 ):
     return User(
         name=test_person_name,
@@ -219,6 +221,9 @@ def test_user(
         affiliation=test_organization,
         mt_identifiers=[test_person_name],
         pubkey_fingerprints=[test_gpg_key.fingerprint],
+        last_login=test_datatime,
+        date_joined=test_datatime,
+        groups=[test_group],
     )
 
 
@@ -448,7 +453,7 @@ def test_dataset(
     return Dataset(
         name="test_dataset",
         description=test_description,
-        mt_identifiers=[test_directory.as_posix()],
+        mt_identifiers=None,
         date_created=test_datatime,
         date_modified=[test_datatime],
         additional_properties=test_extra_properties,
