@@ -21,6 +21,7 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
     Facility,
     Group,
     Instrument,
+    License,
     MTMetadata,
     MyTardisContextObject,
     Organisation,
@@ -92,6 +93,7 @@ def test_extra_properties() -> datetime:
         "units": "tons",
         "days": datetime(1, 1, 1, 0, 0),
         "soul": "IOU",
+        "left-right": ["iron", "steel"],
     }
 
 
@@ -391,7 +393,15 @@ def test_properties_with_Context_obj(test_context_object) -> datetime:
         "days": datetime(1, 1, 1, 0, 0),
         "soul": "IOU",
         "Context_obj": test_context_object,
+        "left-right": ["iron", "steel"],
     }
+
+
+@fixture
+def test_license(test_url, test_name, test_description) -> License:
+    return License(
+        identifier=test_url, url=test_url, name=test_name, description=test_description
+    )
 
 
 @fixture
@@ -402,6 +412,8 @@ def test_project(
     test_extra_properties,
     test_schema_type,
     test_person,
+    test_organization,
+    test_user,
 ) -> Project:
     return Project(
         name="Project_name",
@@ -412,6 +424,8 @@ def test_project(
         additional_properties=test_extra_properties,
         principal_investigator=test_person,
         contributors=[test_person],
+        institution=test_organization,
+        created_by=test_user,
     )
 
 
@@ -424,6 +438,8 @@ def test_experiment(
     test_schema_type,
     test_project,
     test_person,
+    test_user,
+    test_license,
 ) -> Experiment:
     return Experiment(
         name="experiment_name",
@@ -435,6 +451,8 @@ def test_experiment(
         contributors=[test_person],
         mytardis_classification=None,
         projects=[test_project],
+        created_by=test_user,
+        sd_license=test_license,
     )
 
 

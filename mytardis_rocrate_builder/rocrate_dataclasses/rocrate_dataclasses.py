@@ -301,7 +301,7 @@ class Project(MyTardisContextObject):  # pylint: disable=too-many-instance-attri
 
 
 @dataclass(kw_only=True)
-class Lisence(BaseObject):
+class License(BaseObject):
     """Dataclass for Licences for experiment content
 
     Attr:
@@ -319,7 +319,7 @@ class Lisence(BaseObject):
     schema_type: Optional[str | List[str]] = Field(init=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "identifier", url)
+        object.__setattr__(self, "identifier", self.url)
         self.schema_type = "CreativeWork"
 
 
@@ -338,7 +338,7 @@ class Experiment(MyTardisContextObject):  # pylint: disable=too-many-instance-at
         locked (Optional[bool]): is this experiment locked
         handle (Optional[str]): external unique idenifier handle in other serivces
         approved(Optional[bool]): is this project approved?
-        sd_lisence(Optional[Url|Lisence]): what distribution lisence covers this experiment
+        sd_License(Optional[Url|License]): what distribution License covers this experiment
     """
 
     projects: List[Project]  # NOT IN SCHEMA.ORG
@@ -350,7 +350,7 @@ class Experiment(MyTardisContextObject):  # pylint: disable=too-many-instance-at
     locked: Optional[bool] = None
     handle: Optional[str] = None
     approved: Optional[bool] = False
-    sd_license: Optional[Url | Lisence] = None
+    sd_license: Optional[Url | License] = None
 
     def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"

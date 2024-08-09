@@ -25,7 +25,7 @@ from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     Facility,
     Group,
     Instrument,
-    Lisence,
+    License,
     MTMetadata,
     MyTardisContextObject,
     Organisation,
@@ -419,9 +419,6 @@ class ROBuilder:
         additional_properties: Dict[str, Any],
     ) -> JsonProperties:
         entity_properties = properties
-        if not self.flatten_additional_properties:
-            properties["additonal properties"] = {}
-            entity_properties = properties["additonal properties"]
         for key, value in additional_properties.items():
             if isinstance(value, List):
                 for index, item in enumerate(value):
@@ -537,9 +534,8 @@ class ROBuilder:
             creator = self.crate.dereference(
                 project.created_by.roc_id
             ) or self.add_user(project.created_by)
-            project_obj.append_to("createdBy", creator)
             creator.append_to("creator", project_obj)
-            self._add_optional_attr(project_obj, "created_by", creator)
+            self._add_optional_attr(project_obj, "createdBy", creator)
         self._add_optional_attr(project_obj, "url", project.url)
         return self._add_mt_identifiers(project, project_obj)
 
@@ -577,7 +573,7 @@ class ROBuilder:
             creator_entity = self.crate.dereference(
                 experiment.created_by.roc_id
             ) or self.add_user(experiment.created_by)
-            experiment_entity.append_to("creator", creator_entity.id)
+            experiment_entity.append_to("createdBy", creator_entity)
             creator_entity.append_to("created", experiment_entity.id)
         self._add_optional_attr(experiment_entity, "locked", experiment.locked, True)
         self._add_optional_attr(experiment_entity, "handle", experiment.handle)
@@ -585,13 +581,12 @@ class ROBuilder:
             experiment_entity, "approved", experiment.approved, True
         )
         if experiment.sd_license:
-            lisence_id = experiment.sd_license
-            if isinstance(experiment.sd_license, Lisence):
-                lisence_id = str(
-                    self.crate.dereference(experiment.sd_license.roc_id).id
-                    or self.add_lisence(experiment.sd_license).id
-                )
-            experiment_entity.append_to("sdLicense", lisence_id)
+            license_entity = experiment.sd_license
+            if isinstance(experiment.sd_license, License):
+                license_entity = self.crate.dereference(
+                    experiment.sd_license.roc_id
+                ) or self.add_license(experiment.sd_license)
+            experiment_entity.append_to("sdLicense", license_entity)
         experiment_entity.append_to("project", projects)
         return experiment_entity
 
@@ -804,32 +799,39 @@ class ROBuilder:
             )
         )
 
-    def add_lisence(self, lisence: Lisence) -> ContextEntity:
-        """Add a lisence that should be associated with an experiment to the RO-Crate
+    def add_license(self, license_object: License) -> ContextEntity:
+        """Add a License that should be associated with an experiment to the RO-Crate
 
         Args:
-            lisence (Lisence): the lisence as a context object
+            License (License): the License as a context object
 
         Returns:
-            ContextEntity: the lisence entity in the RO-Crate
+            ContextEntity: the License entity in the RO-Crate
         """
         properties: JsonProperties = {
-            "@type": str(lisence.schema_type),
-            "name": lisence.name,
-            "description": lisence.description,
+            "@type": str(license_object.schema_type),
+            "name": license_object.name,
+            "description": license_object.description,
         }
-        lisence_entity = self.crate.add(
+        license_entity = self.crate.add(
             ContextEntity(
-                crate=self.crate, identifier=lisence.id, properties=properties
+                crate=self.crate, identifier=license_object.id, properties=properties
             )
         )
 
         self._add_optional_attr(
-            lisence_entity, "allows_distribution", lisence.allows_distribution, True
+            license_entity,
+            "allows_distribution",
+            license_object.allows_distribution,
+            True,
         )
-        self._add_optional_attr(lisence_entity, "is_active", lisence.is_active, True)
-        self._add_optional_attr(lisence_entity, "image", lisence.image_url, False)
-        return lisence_entity
+        self._add_optional_attr(
+            license_entity, "is_active", license_object.is_active, True
+        )
+        self._add_optional_attr(
+            license_entity, "image", license_object.image_url, False
+        )
+        return license_entity
 
     def add_my_tardis_obj(self, obj: MyTardisContextObject) -> ContextEntity:
         """Add a MyTardis object of unknown type to the RO-Crate
