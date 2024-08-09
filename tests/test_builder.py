@@ -335,6 +335,7 @@ def test_ro_crate_project(
     test_project,
     test_organization,
     test_upi,
+    test_user,
 ) -> None:
     return ROContextEntity(
         crate,
@@ -350,6 +351,8 @@ def test_ro_crate_project(
             "principal_investigator": [{"@id": "#" + test_upi}],
             "contributors": [{"@id": "#" + test_upi}],
             "mytardis_classification": "DataClassification.SENSITIVE",
+            "createdBy": [{"@id": "#" + test_user.id}],
+            "parentOrganization": [{"@id": "#" + test_organization.id}],
         }
         | test_extra_properties,
     )
@@ -367,6 +370,8 @@ def test_ro_crate_experiment(
     crate,
     test_ro_crate_project,
     test_experiment,
+    test_user,
+    test_license,
 ) -> None:
     return ROContextEntity(
         crate,
@@ -381,6 +386,8 @@ def test_ro_crate_experiment(
             "dateModified": [ro_date],
             "datePublished": ro_date,
             "approved": False,
+            "createdBy": [{"@id": "#" + test_user.id}],
+            "sdLicense": [{"@id": test_license.id}],
         }
         | test_extra_properties,
     )
