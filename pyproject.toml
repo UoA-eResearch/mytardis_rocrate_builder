@@ -21,6 +21,7 @@ safety = "^3.2.3"
 pip-audit = "^2.7.3"
 python-gnupg = "^0.5.2"
 coverage = "^7.6.0"
+hypothesis = "^6.110.1"
 
 
 [tool.poetry.group.test.dependencies]
