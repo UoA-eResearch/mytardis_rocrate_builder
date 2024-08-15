@@ -6,6 +6,8 @@ from typing import Any, Dict
 from unittest.mock import patch
 
 from gnupg import GenKey
+from hypothesis import assume, given
+from hypothesis import strategies as st
 from pytest import fixture, raises
 from rocrate.encryption_utils import NoValidKeysError
 from rocrate.model.contextentity import ContextEntity as ROContextEntity

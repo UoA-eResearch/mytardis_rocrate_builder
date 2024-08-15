@@ -153,7 +153,7 @@ class Person(BaseObject):
     email: str
     mt_identifiers: List[str]
     affiliation: Organisation
-    schema_type: str = "Person"
+    schema_type: Union[str, List[str]] = Field(default="Person")
     full_name: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -191,6 +191,7 @@ class User(Person):  # pylint: disable=too-many-instance-attributes
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
     pubkey_fingerprints: Optional[List[str]] = None
+    schema_type: Union[str, List[str]] = Field(default=["Person", "User"])
 
 
 @dataclass(kw_only=True)
