@@ -147,10 +147,14 @@ def test_passphrase():
     return "JosiahCarberry1929/13/09"
 
 
+@fixture
+def test_gpg_binary_location() -> str:
+    return "/usr/bin/gpg"
+
+
 @fixture()
-def test_gpg_object():
-    crate = ROCrate()
-    gpg = GPG(crate.gpg_binary)
+def test_gpg_object(test_gpg_binary_location):
+    gpg = GPG(test_gpg_binary_location)
     return gpg
 
 

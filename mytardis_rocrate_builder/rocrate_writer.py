@@ -6,10 +6,10 @@ import os
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import bagit
-from gnupg import GPG
+from gnupg import GPG, ImportResult
 from rocrate.rocrate import ROCrate
 
 from . import PROCESSES
@@ -17,6 +17,33 @@ from .rocrate_builder import ROBuilder
 from .rocrate_dataclasses.crate_manifest import CrateManifest
 
 logger = logging.getLogger(__name__)
+DEFAULT_KEYSERVER = "https://keyserver.ubuntu.com"
+
+
+def receive_keys_for_crate(
+    gpg_binary: Path, crate_contents: CrateManifest, keyserver: str = DEFAULT_KEYSERVER
+) -> ImportResult:
+    """For all sensitive metadata recipients Receive gpg puiblic keys,
+    using a given keyserver based on the fingerprints provided.
+
+    Args:
+        gpg_binary (Path): gpg binary on the local machine
+        crate_contents (CrateManifest): the contents of this RO-Crate
+        keyserver (str): the target keyserver to receive keys
+
+    Returns:
+        Dict: the result of the retreival operation
+    """
+    gpg = GPG(gpgbinary=gpg_binary)
+    fingerprints = set()
+    for metadata in crate_contents.metadata:
+        if recipients := metadata.recipients:
+            for recipient in recipients:
+                if recipient.pubkey_fingerprints:
+                    recipient_fingerprints = set(recipient.pubkey_fingerprints)
+                    fingerprints.update(recipient_fingerprints)
+    result: Dict[str, Any] = gpg.recv_keys(keyserver, fingerprints)
+    return result
 
 
 def write_crate(
