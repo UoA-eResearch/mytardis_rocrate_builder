@@ -1,14 +1,27 @@
 # Test writing the crate to disk and reading it back (can probably steal some stuff from the RO-Crate lib)
 # type: ignore
 # pylint: disable
+import os
+import tarfile
+import zipfile
+from pathlib import Path
+
+import bagit
 import mock
 from gnupg import GPG, GenKey, ImportResult
-from pytest import fixture, raises, warns
+from pytest import fixture, mark, raises, warns
 from rocrate.rocrate import ROCrate
 
-from mytardis_rocrate_builder.rocrate_dataclasses.crate_manifest import CrateManifest
 from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import MTMetadata
-from mytardis_rocrate_builder.rocrate_writer import receive_keys_for_crate
+from mytardis_rocrate_builder.rocrate_writer import (
+    CrateManifest,
+    archive_crate,
+    bagit_crate,
+    receive_keys_for_crate,
+    write_crate,
+)
+
+METADATA_FILE_NAME = "ro-crate-metadata.json"
 
 
 @fixture
@@ -88,3 +101,112 @@ def test_receive_keys(
         test_recv_keys.return_value = test_gpg_import_missing
         result = receive_keys_for_crate(test_gpg_binary_location, CrateManifest())
         assert result.results == []
+
+
+@mark.parametrize("meta_only", [(False), (True)])
+def test_write_crate(
+    tmpdir,
+    data_dir,
+    builder,
+    test_manifest,
+    test_datafile,
+    test_dataset,
+    ro_crate_helpers,
+    manifest_ro_contents,
+    meta_only,
+):
+    crate_destination = tmpdir / "output_crate"
+    os.chdir(data_dir)
+    write_crate(
+        builder=builder,
+        crate_source=data_dir,
+        crate_contents=test_manifest,
+        crate_destination=crate_destination,
+        meta_only=meta_only,
+    )
+    # Check files have been moved (or not if meta only is false)
+    assert Path(crate_destination / METADATA_FILE_NAME).is_file()
+    assert Path(crate_destination / test_dataset.directory).is_dir() != meta_only
+    assert (
+        Path(
+            crate_destination / test_dataset.directory / test_datafile.filepath
+        ).is_file()
+        != meta_only
+    )
+    assert not Path(
+        crate_destination / test_dataset.directory / "file_that_should_not_move.bam"
+    ).is_file()
+    # validate crate entites are created correctly
+    entites = ro_crate_helpers.read_json_entities(crate_destination)
+    ro_crate_helpers.check_crate(entites)
+    ro_crate_helpers.check_crate_contains(entites, manifest_ro_contents)
+
+
+def test_bag_crage(tmpdir, data_dir, builder, test_person_name):
+    crate_destination = tmpdir / "output_crate"
+    manifest = CrateManifest()
+    write_crate(
+        builder=builder,
+        crate_source=data_dir,
+        crate_destination=crate_destination,
+        crate_contents=manifest,
+        meta_only=True,
+    )
+
+    bagit_crate(crate_destination, test_person_name)
+    assert Path(crate_destination / "data").is_dir()
+    assert Path(crate_destination / "data" / METADATA_FILE_NAME).is_file()
+    bag = bagit.Bag(crate_destination.as_posix())
+    assert bag.is_valid()
+
+
+def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers):
+    crate_destination = tmpdir / "output_crate"
+    manifest = CrateManifest()
+    write_crate(
+        builder=builder,
+        crate_source=data_dir,
+        crate_destination=crate_destination,
+        crate_contents=manifest,
+        meta_only=True,
+    )
+    archive_destination = tmpdir / "zipped_crate/"
+    archive_output = tmpdir / "files_landing/"
+    archive_crate("zip", archive_destination, crate_destination, False)
+    zip_path = archive_destination.as_posix() + ".zip"
+    assert Path(zip_path).is_file()
+    with zipfile.ZipFile(zip_path) as validate_zip:
+        assert validate_zip.namelist()
+        metadata_path = validate_zip.extract(
+            f"output_crate/{METADATA_FILE_NAME}", path=archive_output
+        )
+        entites = ro_crate_helpers.read_json_entities(Path(metadata_path).parent)
+        ro_crate_helpers.check_crate(entites)
+        validate_zip.close()
+
+
+@mark.parametrize("tar_type,read_mode", [("tar.gz", "r:gz"), ("tar", "r")])
+def test_tar_crate(
+    tmpdir, data_dir, builder, test_person_name, ro_crate_helpers, tar_type, read_mode
+):
+    crate_destination = tmpdir / "output_crate"
+    manifest = CrateManifest()
+    write_crate(
+        builder=builder,
+        crate_source=data_dir,
+        crate_destination=crate_destination,
+        crate_contents=manifest,
+        meta_only=True,
+    )
+    archive_destination = tmpdir / "tarred_crate/"
+    archive_output = tmpdir / "files_landing/"
+    archive_crate(tar_type, archive_destination, crate_destination, False)
+    tar_path = archive_destination.as_posix() + "." + tar_type
+    assert Path(tar_path).is_file()
+    with tarfile.open(tar_path, read_mode) as validate_tar:
+        assert validate_tar.getnames()
+        validate_tar.extract(f"output_crate/{METADATA_FILE_NAME}", path=archive_output)
+        metadata_path = archive_output / "output_crate"
+        entites = ro_crate_helpers.read_json_entities(Path(metadata_path))
+        ro_crate_helpers.check_crate(entites)
+        validate_tar.close()

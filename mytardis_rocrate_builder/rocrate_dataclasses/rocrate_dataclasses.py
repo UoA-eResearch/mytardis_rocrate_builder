@@ -379,7 +379,8 @@ class Dataset(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = "Dataset"
-        object.__setattr__(self, "identifier", self.directory.as_posix())
+        identifier_path = self.directory.as_posix().rstrip("/") + "/"
+        object.__setattr__(self, "identifier", identifier_path)
 
     @property
     def roc_id(self) -> str:
@@ -406,8 +407,10 @@ class Datafile(MyTardisContextObject):
 
     def __post_init__(self) -> None:
         self.schema_type = ["File", "MediaObject"]
-        object.__setattr__(self, "identifier", self.filepath.as_posix())
         self.directory = self.dataset.directory
+        object.__setattr__(
+            self, "identifier", (self.directory / self.filepath).as_posix()
+        )
 
     @property
     def roc_id(self) -> str:
