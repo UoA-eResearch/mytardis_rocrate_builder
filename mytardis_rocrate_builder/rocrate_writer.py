@@ -131,11 +131,12 @@ def archive_crate(
             logger.warning("Bagit for crate is not valid!")
     if not archive_type:
         return
+    file_location = output_location.parent / (f"{output_location.name}.{archive_type}")
     match archive_type:
         case "tar.gz":
             logger.info("Tar GZIP archiving %s", crate_location.name)
             with tarfile.open(
-                output_location.parent / (output_location.name + ".tar.gz"),
+                file_location,
                 mode="w:gz",
             ) as out_tar:
                 out_tar.add(
@@ -146,9 +147,7 @@ def archive_crate(
             out_tar.close()
         case "tar":
             logger.info("Tar archiving %s", crate_location.name)
-            with tarfile.open(
-                output_location.parent / (output_location.name + ".tar"), mode="w"
-            ) as out_tar:
+            with tarfile.open(file_location, mode="w") as out_tar:
                 out_tar.add(
                     crate_location,
                     arcname=crate_location.name,
@@ -157,9 +156,7 @@ def archive_crate(
             out_tar.close()
         case "zip":
             logger.info("zip archiving %s", crate_location.name)
-            with zipfile.ZipFile(
-                output_location.parent / (output_location.name + ".zip"), "w"
-            ) as out_zip:
+            with zipfile.ZipFile(file_location, "w") as out_zip:
                 for root, _, files in os.walk(crate_location):
                     for filename in files:
                         arcname = (

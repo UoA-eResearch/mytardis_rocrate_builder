@@ -325,7 +325,7 @@ class ROBuilder:
             return self.crate.add(rocrate_obj)
         for _, identifier in enumerate(obj_dataclass.mt_identifiers):
             if rocrate_obj.id != identifier:
-                rocrate_obj.append_to("mt_identifiers", identifier)
+                rocrate_obj.append_to("mt_identifiers", str(identifier))
         self.crate.add(rocrate_obj)
         return rocrate_obj
 
@@ -677,34 +677,41 @@ class ROBuilder:
         Returns:
             DataEntity: the datafile RO-Crate entity that will be written to the json-LD
         """
-        identifier = datafile.filepath.as_posix()
+        identifier = (datafile.dataset.directory / datafile.filepath).as_posix()
         if identifier != datafile.id:
             logger.warning(
                 "datafile mt_identifiers should be relative filepaths updating %s to %s",
                 datafile.id,
                 identifier,
             )
-            datafile.mt_identifiers = [identifier] + datafile.mt_identifiers  # type: ignore
+            datafile.mt_identifiers.extend([identifier])  # type: ignore
         properties: Dict[str, Any] = {
             "name": str(datafile.name),
             "description": datafile.description,
-            "version": datafile.version,
+            "datafileVersion": datafile.version,
         }
         properties = self._update_properties(
             data_object=datafile, properties=properties
         )
-        source = (
-            self.crate.source / datafile.filepath
-            if self.crate.source and (self.crate.source / datafile.filepath).exists()
-            else identifier
-        )
-        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.roc_id)
+        dataset_obj: DataEntity = self.crate.dereference(
+            datafile.dataset.roc_id
+        ) or self.add_dataset(datafile.dataset)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
 
-        destination_path = Path(dataset_obj.id) / datafile.filepath.relative_to(
-            Path(dataset_obj.id)
+        try:
+            destination_path = Path(dataset_obj.id) / datafile.filepath.relative_to(
+                Path(dataset_obj.id)
+            )
+        except ValueError:
+            destination_path = Path(dataset_obj.id) / datafile.filepath.name
+
+        source = (
+            self.crate.source / destination_path
+            if self.crate.source and (self.crate.source / destination_path).exists()
+            else destination_path
         )
+
         datafile_obj = self.crate.add_file(
             source=source,
             properties=properties,
