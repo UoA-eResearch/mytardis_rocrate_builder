@@ -182,7 +182,7 @@ class User(Person):  # pylint: disable=too-many-instance-attributes
     """
 
     groups: Optional[List[Group]] = None
-    is_django_account: Optional[bool] = None
+    is_django_account: bool = False
     permissions: Optional[Dict[str, str]] = None
     is_staff: Optional[bool] = None
     hashed_password: Optional[str] = None
@@ -191,7 +191,7 @@ class User(Person):  # pylint: disable=too-many-instance-attributes
     last_login: Optional[datetime] = None
     date_joined: Optional[datetime] = None
     pubkey_fingerprints: Optional[List[str]] = None
-    schema_type: Union[str, List[str]] = Field(default=["Person", "User"])
+    schema_type: str = "Person"
 
 
 @dataclass(kw_only=True)
