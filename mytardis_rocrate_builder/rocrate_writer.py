@@ -202,3 +202,27 @@ def bulk_encrypt_file(
             )
         logger.info("encrypt ok: %s", status.ok)
         logger.info("encrypt status: %s", status.status)
+
+
+def bulk_decrypt_file(
+    gpg_binary: Path, data_to_decrypt: Path, output_path: Path
+) -> None:
+    """Add
+
+    Args:
+        gpg_binary (Path): _description_
+        data_to_decrypt (Path): _description_
+        output_path (Path): _description_
+    """
+
+    gpg = GPG(gpgbinary=gpg_binary)
+    if data_to_decrypt.is_file():
+        with open(data_to_decrypt, "rb", encoding="utf8") as f:
+            result = gpg.decrypt(f.read())
+            logger.info("encrypt ok: %s", result.ok)
+            logger.info("encrypt status: %s", result.status)
+            if result.ok:
+                with open(output_path, "w", encoding="utf8") as of:
+                    of.write(result.self.data)
+                of.close()
+        f.close()
