@@ -205,7 +205,10 @@ def bulk_encrypt_file(
 
 
 def bulk_decrypt_file(
-    gpg_binary: Path, data_to_decrypt: Path, output_path: Path
+    gpg_binary: Path,
+    data_to_decrypt: Path,
+    output_path: Path,
+    passphrase: str | None = None,
 ) -> None:
     """Add
 
@@ -217,12 +220,12 @@ def bulk_decrypt_file(
 
     gpg = GPG(gpgbinary=gpg_binary)
     if data_to_decrypt.is_file():
-        with open(data_to_decrypt, "rb", encoding="utf8") as f:
-            result = gpg.decrypt(f.read())
+        with open(data_to_decrypt, "rb") as f:
+            result = gpg.decrypt(f.read(), passphrase=passphrase)
             logger.info("encrypt ok: %s", result.ok)
             logger.info("encrypt status: %s", result.status)
             if result.ok:
-                with open(output_path, "w", encoding="utf8") as of:
-                    of.write(result.self.data)
+                with open(output_path, "wb") as of:
+                    of.write(result.data)
                 of.close()
         f.close()
