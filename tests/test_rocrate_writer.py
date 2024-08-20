@@ -9,6 +9,8 @@ from pathlib import Path
 import bagit
 import mock
 from gnupg import GPG, GenKey, ImportResult
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from pytest import fixture, mark, raises, warns
 from rocrate.rocrate import ROCrate
 
@@ -17,6 +19,8 @@ from mytardis_rocrate_builder.rocrate_writer import (
     CrateManifest,
     archive_crate,
     bagit_crate,
+    bulk_decrypt_file,
+    bulk_encrypt_file,
     receive_keys_for_crate,
     write_crate,
 )
@@ -210,3 +214,42 @@ def test_tar_crate(
         entites = ro_crate_helpers.read_json_entities(Path(metadata_path))
         ro_crate_helpers.check_crate(entites)
         validate_tar.close()
+
+
+# check files with random input come in and out the same (probably due to us having messed about with them before GPG does the work)
+@given(st.binary())
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    deadline=None,
+    max_examples=25,
+)
+def test_bulk_encrypt_and_decrypt(
+    tmpdir,
+    data_dir,
+    test_gpg_binary_location,
+    test_gpg_key,
+    test_passphrase,
+    bytes_data,
+):
+    target_test_file = data_dir / "file_to_encrypt"
+    with open(target_test_file, "wb") as of:
+        of.write(bytes_data)
+    of.close()
+    target_encrypted_file = target_test_file.as_posix() + ".gpg"
+    target_decrypted_file = target_test_file.as_posix() + ".decrypted"
+    bulk_encrypt_file(
+        gpg_binary=test_gpg_binary_location,
+        pubkey_fingerprints=[test_gpg_key.fingerprint],
+        data_to_encrypt=target_test_file,
+        output_path=target_test_file,
+    )
+    assert Path(target_encrypted_file).is_file()
+    bulk_decrypt_file(
+        gpg_binary=test_gpg_binary_location,
+        data_to_decrypt=Path(target_encrypted_file),
+        output_path=Path(target_decrypted_file),
+        passphrase=test_passphrase,
+    )
+    with open(target_test_file, "rb") as f1:
+        with open(target_decrypted_file, "rb") as f2:
+            assert f1.read() == f2.read()
