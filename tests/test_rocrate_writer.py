@@ -1,6 +1,7 @@
 # Test writing the crate to disk and reading it back (can probably steal some stuff from the RO-Crate lib)
 # type: ignore
 # pylint: disable
+import copy
 import os
 import tarfile
 import zipfile
@@ -14,9 +15,16 @@ from hypothesis import strategies as st
 from pytest import fixture, mark, raises, warns
 from rocrate.rocrate import ROCrate
 
-from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import MTMetadata
-from mytardis_rocrate_builder.rocrate_writer import (
+from mytardis_rocrate_builder.rocrate_dataclasses.crate_manifest import (
     CrateManifest,
+    reduce_to_dataset,
+)
+from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
+    Datafile,
+    Dataset,
+    MTMetadata,
+)
+from mytardis_rocrate_builder.rocrate_writer import (
     archive_crate,
     bagit_crate,
     bulk_decrypt_file,
@@ -107,6 +115,72 @@ def test_receive_keys(
         assert result.results == []
 
 
+def test_reduce_to_dataset(
+    test_manifest: CrateManifest, test_datafile, test_dataset, tmpdir, data_dir, builder
+):
+    manifest_with_extras = CrateManifest(
+        projcets=test_manifest.projcets,
+        experiments=test_manifest.experiments,
+        datasets=test_manifest.datasets,
+        datafiles=test_manifest.datafiles,
+        metadata=test_manifest.metadata,
+        acls=test_manifest.acls,
+    )
+
+    Project = mock.MagicMock()
+    Experiment = mock.MagicMock()
+    Instrument = mock.MagicMock()
+    unlinked_dataset = Dataset(
+        name="unlinked dataset",
+        experiments=Experiment(),
+        directory=Path("/unlinked_dataset/"),
+        instrument=Instrument(),
+        description="a second dataset not linked to the first",
+    )
+    unlinked_datafile = Datafile(
+        name="unlinked datafile",
+        filepath=Path("/unlinked_dataset/unlinked_datafile"),
+        description="a datafile not linked to the main dastaset",
+        dataset=unlinked_dataset,
+    )
+    ACL = mock.MagicMock()
+    Metadata = mock.MagicMock()
+
+    manifest_with_extras.add_projects({"test_extra_project": Project()})
+    manifest_with_extras.add_experiments({"test_extra_dc": Experiment()})
+    manifest_with_extras.add_datafiles([unlinked_datafile])
+    manifest_with_extras.add_datasets({"test_extra_ds": unlinked_dataset})
+    manifest_with_extras.add_metadata([Metadata()])
+    manifest_with_extras.add_acls([ACL()])
+    out_manifest = reduce_to_dataset(manifest_with_extras, test_dataset)
+    assert out_manifest.projcets == test_manifest.projcets
+    assert out_manifest.projcets != manifest_with_extras.projcets
+
+    assert out_manifest.experiments == test_manifest.experiments
+    assert out_manifest.experiments != manifest_with_extras.experiments
+
+    assert out_manifest.datasets == test_manifest.datasets
+    assert out_manifest.datasets != manifest_with_extras.datasets
+
+    assert unlinked_dataset not in out_manifest.datasets.values()
+    assert unlinked_datafile not in out_manifest.datafiles
+
+    assert [metadata.id for metadata in out_manifest.metadata] == [
+        metadata.id for metadata in test_manifest.metadata
+    ]
+    assert [acl.id for acl in out_manifest.acls] == [
+        acl.id for acl in test_manifest.acls
+    ]
+    # make sure the crate has complete data to be written
+    write_crate(
+        builder=builder,
+        crate_source=data_dir,
+        crate_destination=tmpdir,
+        crate_contents=out_manifest,
+        meta_only=True,
+    )
+
+
 @mark.parametrize("meta_only", [(False), (True)])
 def test_write_crate(
     tmpdir,
@@ -162,6 +236,7 @@ def test_bag_crage(tmpdir, data_dir, builder, test_person_name):
     assert Path(crate_destination / "data" / METADATA_FILE_NAME).is_file()
     bag = bagit.Bag(crate_destination.as_posix())
     assert bag.is_valid()
+    archive_crate("zip", crate_destination, crate_destination, True)
 
 
 def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers):

@@ -24,9 +24,15 @@ class CrateManifest:
         self.projcets = projcets or {}
         self.experiments = experiments or {}
         self.datasets = datasets or {}
-        self.datafiles = datafiles or []
-        self.metadata = metadata or []
-        self.acls = acls or []
+        self.datafiles = []
+        if datafiles:
+            self.datafiles.extend(datafiles)
+        self.metadata = []
+        if metadata:
+            self.metadata.extend(metadata)
+        self.acls = []
+        if acls:
+            self.acls.extend(acls)
         self.identifier = identifier or ""
 
     def add_projects(self, projcets: Dict[str, Project]) -> None:
@@ -76,7 +82,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
         for datafile in in_manifest.datafiles
         if datafile.dataset is dataset
     ]
-    out_file_ids = (outfile.id for outfile in out_files)
+    out_file_ids = {outfile.id for outfile in out_files}
     outmetadata = []
     for metadata in in_manifest.metadata:
         parent_id = metadata.parent.id
