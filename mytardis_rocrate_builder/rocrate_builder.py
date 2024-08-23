@@ -195,10 +195,8 @@ class ROBuilder:
             },
         )
         self._add_optional_attr(org, "url", organisation.url)
-        if len(organisation.mt_identifiers) > 1:
-            for index, identifier in enumerate(organisation.mt_identifiers):
-                if index != 0:
-                    org.append_to("identifier", identifier)
+        for _, mt_identifier in enumerate(organisation.mt_identifiers):
+            org.append_to("mt_identifiers", mt_identifier)
         return self.crate.add(org)
 
     def __add_person_to_crate(self, person: Person) -> ROPerson:
@@ -243,10 +241,9 @@ class ROBuilder:
             person_obj.append_to(
                 "affiliation", self.__add_organisation(person.affiliation)
             )
-        if len(person.mt_identifiers) > 1:
-            for identifier in person.mt_identifiers:
-                if identifier != person_id:
-                    person_obj.append_to("identifier", identifier)
+        for identifier in person.mt_identifiers:
+            if identifier != person_id:
+                person_obj.append_to("mt_identifier", identifier)
         self.crate.add(person_obj)
         return person_obj
 
