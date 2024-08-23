@@ -1,11 +1,18 @@
 """Definition of RO-Crate dataclasses"""
 
+import uuid
 from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+
+from pydantic import AfterValidator, Field, PlainSerializer, WithJsonSchema
+from slugify import slugify
+from validators import url
+
+from .. import MYTARDIS_NAMESPACE_UUID
 
 MT_METADATA_TYPE = {
     1: "NUMERIC",
@@ -34,177 +41,239 @@ class DataClassification(Enum):
     PUBLIC = 100
 
 
-@dataclass
-class Organisation:
+def validate_url(value: Any) -> str:
+    """Custom validator for Urls since the default pydantic ones are not compatible
+    with urllib"""
+    if not isinstance(value, str):
+        raise TypeError(f'Unexpected type for URL: "{type(value)}"')
+    if url(value):
+        return value
+    raise ValueError(f'Passed string value"{value}" is not a valid URL')
+
+
+Url = Annotated[
+    str,
+    AfterValidator(validate_url),
+    PlainSerializer(str, return_type=str),
+    WithJsonSchema({"type": "string"}, mode="serialization"),
+]
+
+
+@dataclass(kw_only=True)
+class BaseObject(ABC):
+    """Abstract Most basic object that can be turned into an RO-Crate entity
+
+    Attr:
+        identifier (str): The identifier that will be used in the RO-Crate
+            Assigned based on UUID generation
+    """
+
+    identifier: str | int | float = Field(init=False, frozen=True)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", str(uuid.uuid4()))
+
+    @property
+    def id(self) -> str | int | float:
+        """syntatic sugar for id used in RO-Crate"""
+        return self.identifier
+
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted as RO-Crate string"
+        return f"#{self.id}"
+
+
+@dataclass(kw_only=True)
+class Organisation(BaseObject):  # pylint: disable=too-many-instance-attributes
+    # attributes to match organisations in MyTradis model
     """Dataclass to hold the details of an organisation for RO-Crate
 
     Attr:
-        identifier (List[str]): A list of identifiers that can be used to uniquely
+        mt_identifiers (List[str]): A list of mt_identifiers that can be used to uniquely
             identify the organisation - typically RoR
         name (str): The name of the organisation
         url (str): An optional URL for the organisation - default None
+        research_org (bool): is this orgranization a research organization
+        status(str): status of the research org
+        country(str): what is the country of orign of this research org
     """
 
-    identifiers: List[str]
+    mt_identifiers: List[str]
     name: str
     location: Optional[str] = None
-    url: Optional[str] = None
+    url: Optional[Url] = None
     research_org: bool = True
+    status: Optional[str] = None
+    country: Optional[str] = None
 
-    @property
-    def id(self) -> str | int | float:
-        """Retrieve first ID to act as RO-Crate ID"""
-        return self.identifiers[0]
-
-
-@dataclass
-class Person:
-    """Dataclass to hold the details of a person for RO-Crate
-
-    Attr:
-        identifier (List[str]): An optional list of unique identifiers for the person
-            - Must contain UPI for import into MyTardis
-            - typically ORCID - default None
-        name (str): The full name (first name/last name) of the person
-        email (str): A contact email address for the person named
-        affilitation (Organisation): An organisation that is the primary affiliation for
-            the person
-    """
-
-    name: str
-    email: str
-    affiliation: Organisation
-    identifiers: List[str]
-    schema_type: List[str] = ["Person"]
-
-    @property
-    def id(self) -> str | int | float:
-        """Retrieve first ID to act as RO-Crate ID"""
-        return self.identifiers[0]
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.mt_identifiers)
 
 
-@dataclass
-class Group:
+@dataclass(kw_only=True)
+class Group(BaseObject):
     """Dataclass to hold the details of a group for RO-Crate
-    
+
     Attr:
         name (str): The group name of the group
     """
+
+    identifier: str | int | float = Field(init=False, frozen=True)
     name: str
-    schema_type: List[str] = ["Audience", "Thing"]
-    @property
-    def id(self) -> str:
-        """Return the group name as the RO-Crate ID"""
-        return self.name
+    permissions: Optional[Dict[str, str]] = None
+    schema_type: Optional[str | List[str]] = Field(init=False)
 
-@dataclass
-class BaseObject(ABC):
-    """Abstract Most basic object that can be turned into an RO-Crate entity"""
-
-    name: str
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        )
+        self.schema_type = "Audience"
 
 
-@dataclass
-class MTMetadata(BaseObject):
-    """Concrete Metadata class for RO-crate
-    Contains all information to store or recreate MyTardis metadata.
-    Used as backup and recovery option.
-
-    creates an RO-Crate JSON-LD entity matching this schema
-    "@id": string - unique ID in the RO-Crate,
-    "@type": string = "MyTardis-Metadata_field" - RO-Crate type,
-    "name": string - name of the metadata in MyTardis,
-    "value": string | Any - Metadata value in my tardis,
-    "mt-type": string - Metadata type as recorded in MyTardis,
-    "mt-schema": string - the object schema in MyTardis that applies to this metadata record
-    "sensitive": bool - Metadata ,
-    "parents": List[string] - list of ids for all the parents
+@dataclass(kw_only=True)
+class Person(BaseObject):
+    """Dataclass to hold the details of a person for RO-Crate
 
     Attr:
-        experiment (str): An identifier for an experiment
+        name : the username of the person object in MyTardis (usually UPI)
+        mt_identifiers (List[str]): An optional list of unique mt_identifiers for the person
+            - Must contain UPI for import into MyTardis
+            - typically ORCID - default None
+        full_name (str): The full name (first name/last name) of the person
+        email (str): A contact email address for the person named
+        affilitation (Organisation): An organisation that is the primary affiliation for
+            the person
+        schema_type (str): the schema.org type of this entity
+        full name: the first and last name of the person
     """
-    ro_crate_id: str
-    value: str
-    mt_type: str
-    mt_schema: str
-    sensitive: bool
-    parents: List[str] | None
+
+    identifier: str | int | float = Field(init=False, frozen=True)
+    name: str
+    email: str
+    mt_identifiers: List[str]
+    affiliation: Organisation
+    schema_type: Union[str, List[str]] = Field(default="Person")
+    full_name: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, self.name)
+        )
 
 
-@dataclass
-class ContextObject(BaseObject):
+@dataclass(kw_only=True)
+class User(Person):  # pylint: disable=too-many-instance-attributes
+    """Dataclass to extend Person as a Django user in MyTardis.
+        Primarily used to link people to Groups if needed,
+        But capable of storing all information
+    Attr:
+        groups (Optional[List[Group]]): All groups this user belongs to
+        isDjangoAccount (Optional[bool]): was this user created in Django
+        permissions (Optional[Dict[str:Any]]): all permissions held by this user account
+        is_staff (Optional[bool]): is this user a staff/admin account
+        hashed_password (Optional[str]): the hashed password of the user
+            DO NOT STORE RAW PASSWORDS
+        is_active (Optional[bool]): is this an active user account
+        is_superuser (Optional[bool]): is this user a superuser? (should we store this?)
+        last_login (Optional[datetime]): last login date of this user
+        date_joined (Optional[datetime]): when did this user join the service
+
+    """
+
+    groups: Optional[List[Group]] = None
+    is_django_account: bool = False
+    permissions: Optional[Dict[str, str]] = None
+    is_staff: Optional[bool] = None
+    hashed_password: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+    last_login: Optional[datetime] = None
+    date_joined: Optional[datetime] = None
+    pubkey_fingerprints: Optional[List[str]] = None
+    schema_type: str = "Person"
+
+
+@dataclass(kw_only=True)
+class ContextObject(BaseObject):  # pylint: disable=too-many-instance-attributes
     """Abstract dataclass for an object for RO-Crate
 
     Attr:
         name (str): The name of the object
         description (str): A longer form description of the object
-        identifiers (List[str]):
-            A list of identifiers for the object
-            the first of which will be used as a UUID in the RO-Crate
+        mt_identifiers (List[str]):
+            A list of mt_identifiers for the object
         date_created (Optional[datetime]) : when was the object created
         date_modified (Optional[List[datetime]]) : when was the object last changed
-        metadata (Optional[Dict[str, MTMetadata]])  a list of the mytardis metadata elements
         additional_properties Optional[Dict[str, Any]] : metadata not in schema
         schema_type (Optional[str | list[str]]) :Schema.org types or type
+            Assigned based on dataclass
     """
 
+    name: str
     description: str
-    identifiers: List[str | int | float]
-    date_created: Optional[datetime]
-    date_modified: Optional[List[datetime]]
-    additional_properties: Optional[Dict[str, Any]]
-    schema_type: Optional[str | list[str]]
-
-    @property
-    def id(self) -> str | int | float:
-        """Retrieve first ID to act as RO-Crate ID"""
-        return self.identifiers[0]
-
-
-@dataclass
-class Instrument(ContextObject):
-    """Dataclass for Instruments to be assoicated with MyTardis Datasets"""
-
-    location: str
-    metadata: Optional[Dict[str, MTMetadata]]
-    identifiers: Optional[List[str]]
-    schema_type = ["Instrument", "Thing"]
-
-
-@dataclass
-class ACL(ContextObject):
-    """Acess level controls in MyTardis provided to people and groups
-    based on https://schema.org/DigitalDocumentPermission
-    grantee - the user or group granted access"""
-
-    grantee: str
-    grantee_type: str
-    mytardis_owner: bool = False
-    mytardis_can_download: bool = False
-    mytardis_see_sensitive: bool = False
+    mt_identifiers: Optional[List[str | int | float]] = None
+    date_created: Optional[datetime] = None
+    date_modified: Optional[List[datetime]] = None
+    additional_properties: Optional[Dict[str, Any]] = None
+    schema_type: Union[str, List[str]] = Field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
-        self.permission_type = "ReadPermission"
-        self.schema_type = "DigitalDocumentPermission"
+        object.__setattr__(self, "identifier", gen_uuid_id(self.name))
+        self.schema_type = "Thing"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class MyTardisContextObject(ContextObject):
     """Context objects containing MyTardis specific properties.
     These properties are not used by other RO-Crate endpoints.
 
     Attr:
-        acls (List[ACL]): access level controls associated with the object
-        metadata (Dict[str: MTMetadata]): MyTardis metadata
-        associated with the object
+        mytardis_classification (DataClassification): the classification in MyTardis
+            Default = Sensitive
+
     """
 
-    acls: Optional[List[ACL]]
-    metadata: Optional[Dict[str, MTMetadata]]
+    mytardis_classification: Optional[DataClassification] = (
+        DataClassification.SENSITIVE
+    )  # NOT IN SCHEMA.ORG
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "identifier", gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (self.name))
+        )
 
 
-@dataclass
-class Project(MyTardisContextObject):
+@dataclass(kw_only=True)
+class Facility(MyTardisContextObject):
+    """Dataclass for Facilites to be assoicated with MyTardis Instruments
+    Attr:
+        manager_group (Group): the group that manages this facillity
+    """
+
+    manager_group: Optional[Group] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Place"
+
+
+@dataclass(kw_only=True)
+class Instrument(MyTardisContextObject):
+    """Dataclass for Instruments to be assoicated with MyTardis Datasets
+    Attr:
+        location (Facility): the facility this instrument is located at"""
+
+    location: Facility
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.name)
+        self.schema_type = "Instrument"
+
+
+@dataclass(kw_only=True)
+class Project(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
+    # number of attr based on MyTardis module also most are optional
     """Concrete Project class for RO-Crate - inherits from ContextObject
     https://schema.org/Project
 
@@ -215,89 +284,278 @@ class Project(MyTardisContextObject):
     """
 
     principal_investigator: Person  # NOT IN SCHEMA.ORG
-    contributors: Optional[List[Person]]
-    schema_type: Optional[str]
+    contributors: Optional[List[Person]] = None
+    institution: Optional[Organisation] = None
+    embargo_until: Optional[datetime] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    created_by: Optional[User] = None
+    url: Optional[Url] = None
 
     def __post_init__(self) -> None:
         self.schema_type = "Project"
+        object.__setattr__(
+            self,
+            "identifier",
+            gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))),
+        )
 
 
-@dataclass
-class Experiment(MyTardisContextObject):
-    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from ContextObject
+@dataclass(kw_only=True)
+class License(BaseObject):
+    """Dataclass for Licences for experiment content
+
+    Attr:
+        url (List[Project]): the projects linked with this experiment
+        contributors (List[Person]): A list of people associated with this experiment
+    """
+
+    url: Url
+    name: str
+    description: str
+    allows_distribution: bool = False
+    is_active: bool = True
+
+    image_url: Optional[Url] = None
+    schema_type: Optional[str | List[str]] = Field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identifier", self.url)
+        self.schema_type = "CreativeWork"
+
+
+@dataclass(kw_only=True)
+class Experiment(MyTardisContextObject):  # pylint: disable=too-many-instance-attributes
+    # number of attributes to match model in my tardis
+    """Concrete Experiment/Data-Catalog class for RO-Crate - inherits from yTardisContextObject
     https://schema.org/DataCatalog
     Attr:
-        project (str): An identifier for a project
+        projects (List[Project]): the projects linked with this experiment
+        contributors (List[Person]): A list of people associated with this experiment
+        url(Optional[Url]): the url of this project
+        start_time (Optional[datetime]): when did this experiment start
+        end_time (Optional[datetime]): when did this experiment end
+        created_by (Optional[User]): what user created this experiment
+        locked (Optional[bool]): is this experiment locked
+        handle (Optional[str]): external unique idenifier handle in other serivces
+        approved(Optional[bool]): is this project approved?
+        sd_License(Optional[Url|License]): what distribution License covers this experiment
     """
 
     projects: List[Project]  # NOT IN SCHEMA.ORG
-    contributors: Optional[List[Person]]
-    mytardis_classification: Optional[DataClassification]  # NOT IN SCHEMA.ORG
-    schema_type: Optional[str]
+    contributors: Optional[List[Person]] = None
+    url: Optional[Url] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    created_by: Optional[User] = None
+    locked: Optional[bool] = None
+    handle: Optional[str] = None
+    approved: Optional[bool] = False
+    sd_license: Optional[Url | License] = None
 
     def __post_init__(self) -> None:
         self.schema_type = "DataCatalog"
+        object.__setattr__(
+            self,
+            "identifier",
+            gen_uuid_id(MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self))),
+        )
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Dataset(MyTardisContextObject):
-    """Concrete Dataset class for RO-crate - inherits from ContextObject
-
+    """Concrete Dataset class for RO-crate - inherits from MyTardisContextObject
     Attr:
-        experiment (str): An identifier for an experiment
+    experiments (List[Experiment]): the experiments linked with this dataset
+    directory (Path): the local path of the directory of this dataset
+    instrument (Instrument): the instrument associated with this dataset
+    contributors (List[Person]): A list of people associated with this dataset
     """
 
     experiments: List[Experiment]
     directory: Path
-    contributors: Optional[List[Person]]
     instrument: Instrument
-    schema_type: Optional[str]
+    contributors: Optional[List[Person]] = None
 
     def __post_init__(self) -> None:
-        self.identifiers: list[str | int | float] = [  # type: ignore
-            self.directory.as_posix()
-        ] + self.identifiers  # type: ignore
         self.schema_type = "Dataset"
+        identifier_path = self.directory.as_posix().rstrip("/") + "/"
+        object.__setattr__(self, "identifier", identifier_path)
 
-    # mytardis_classification: str #NOT IN SCHEMA.ORG
-    def update_path(self, new_path: Path) -> None:
-        """Update the path of a dataset chanigng it's name and identifiers
-
-        Args:
-            new_path (Path): path to update the dataset to
-        """
-        self.directory = new_path
-        self.identifiers = [new_path.as_posix()]
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted for RO-Crate, for datasets this is simply path"
+        return str(self.id)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Datafile(MyTardisContextObject):
-    """Concrete datafile class for RO-crate - inherits from ContextObject
-
+    """Concrete datafile class for RO-crate - inherits from MyTaridsContextObject
     Attr:
-        experiment (str): An identifier for an experiment
+    filepath (str): the relative path to this file
+    dataset (Dataset): the Dataset parent of this datafile
+    version (int): the version number of this file
+    storage_box (Optional[URL]): The MyTardis storage box this file resides in
     """
 
     filepath: Path
     dataset: Dataset
-    schema_type: Optional[str]
+    version: int = 1
+    storage_box: Optional[Url] = None
+    directory: Path = Field(init=False)
+    deleted: Optional[bool] = False
 
     def __post_init__(self) -> None:
-        self.schema_type = "File"
-        self.identifiers: list[str | int | float] = [  # type: ignore
-            self.filepath.as_posix()
-        ] + self.identifiers  # type: ignore
+        self.schema_type = ["File", "MediaObject"]
+        self.directory = self.dataset.directory
+        object.__setattr__(
+            self, "identifier", (self.directory / self.filepath).as_posix()
+        )
 
-    def update_to_root(self, dataset: Dataset) -> Path:
-        """Update a datafile that is a child of a dataset so that dataset is now the root
+    @property
+    def roc_id(self) -> str:
+        "return Identifer formatted for RO-Crate, for datafiles this is simply path"
+        return str(self.id)
 
-        Args:
-            dataset (Dataset): the dataset that is being updated to be root
-        """
-        self.dataset = dataset
-        try:
-            new_filepath = self.filepath.relative_to(dataset.directory)
-        except ValueError:
-            new_filepath = self.filepath
-        self.filepath = new_filepath
-        return self.filepath
+    # def update_to_root(self, dataset: Dataset) -> Path:
+    #     """Update a datafile that is a child of a dataset so that dataset is now the root
+
+    #     Args:
+    #         dataset (Dataset): the dataset that is being updated to be root
+    #     """
+    #     self.dataset = dataset
+    #     try:
+    #         new_filepath = self.filepath.relative_to(dataset.directory)
+    #     except ValueError:
+    #         new_filepath = self.filepath
+    #     self.filepath = new_filepath
+    #     object.__setattr__(self, "identifier", self.filepath.as_posix())
+    #     return self.filepath
+
+
+@dataclass(kw_only=True)
+class ACL(BaseObject):  # pylint: disable=too-many-instance-attributes
+    """Acess level controls in MyTardis provided to people and groups
+    based on https://schema.org/DigitalDocumentPermission
+    grantee - the user or group granted access
+
+        Attr:
+        name (str): A name given to this ACL (user defined)
+        Grantee (Person | Group): Grantee the person or group this ACL belongs to
+        parent (MyTardisContextObject): the object this ACL applies to
+        mytardis_owner (bool): does this ACL grant ownership
+        mytardis_can_download (bool): does this ACL grant download rights
+        mytardis_see_sensitive (bool): does this ACL grant rigthts to see sensitive metadata
+
+    """
+
+    name: str
+    grantee: User | Group
+    grantee_type: Literal["Audiance", "Person"]
+    parent: MyTardisContextObject
+    mytardis_owner: bool = False
+    mytardis_can_download: bool = False
+    mytardis_see_sensitive: bool = False
+
+    def __post_init__(self) -> None:
+        self.permission_type = "ReadPermission"
+        self.schema_type = "DigitalDocumentPermission"
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self.parent), self.name)
+        )
+
+
+@dataclass(kw_only=True)
+class MTMetadata(BaseObject):  # pylint: disable=too-many-instance-attributes
+    """Concrete Metadata class for RO-crate
+    Contains all information to store or recreate MyTardis metadata.
+    Used as backup and recovery option.
+
+    Attr:
+        name (str): what is the name of this metadata in mytardis
+        value (str): what is the value held in this metadata (As a string)
+        mt_type (MT_METADATA_TYPE): what is the type of this data in MyTardis
+        mt_schema (URL): what MyTardis schema is this metadata linked to
+        sensitive (bool): is this data sensitive
+            should it be written as encrypted
+        parent (MyTardisContextObject): the object this Metadata is linked to
+    """
+
+    name: str
+    value: str
+    mt_type: Literal[
+        "NUMERIC",
+        "STRING",
+        "URL",
+        "LINK",
+        "FILENAME",
+        "DATETIME",
+        "LONGSTRING",
+        "JSON",
+        "STRING",
+    ]
+    mt_schema: Url
+    sensitive: bool
+    parent: MyTardisContextObject
+    recipients: Optional[List[User]] = None
+
+    def __post_init__(self) -> None:
+        self.identifier = gen_uuid_id(
+            MYTARDIS_NAMESPACE_UUID, (generate_pedd_name(self.parent), self.name)
+        )
+
+
+def gen_uuid_id(  #  type: ignore
+    *args, namespace: uuid.UUID = MYTARDIS_NAMESPACE_UUID
+) -> str:
+    """Generate a UUID for a myTarids object
+    Args:
+        namespace (uuid.UUID, optional): the namespace UUID for the base of this UUID.
+            Defaults to MYTARDIS_NAMESPACE_UUID.
+        args* (*Any): a collection of other values to base the UUID on the strings of
+
+    Raises:
+        TypeError: if a non UUID value is passed to the namespace UUID
+
+    Returns:
+        str: a uuid5 based on all inputs and namespaces
+    """
+    if not isinstance(namespace, uuid.UUID):
+        raise TypeError("Namespace needs to be a UUID object.")
+    if not args:
+        return str(namespace)
+    uuid_str = slugify(" ".join(map(str, args)))
+    uuid_obj = uuid.uuid5(namespace, uuid_str)
+    return str(uuid_obj)
+
+
+def generate_pedd_name(mytardis_object: MyTardisContextObject) -> str:
+    """Generate the Project, Experiment, Dataset, Datafile unique name
+    for my Tardis uuid assignment
+
+    Args:
+        parent (MyTardisContextObject): the parent obejct of the entity being assinged this UUID
+
+    Returns:
+        str: the PEDD name for uuid assignment
+    """
+    obj_name: str = ""
+    match mytardis_object:
+        case Project():
+            obj_name = mytardis_object.name
+        case Experiment():
+            obj_name = mytardis_object.name
+        case Dataset():
+            obj_name = f"{mytardis_object.directory.as_posix()}-{mytardis_object.name}"
+        case Datafile():
+            obj_name = "".join(
+                [
+                    f"{mytardis_object.filepath.as_posix()}-",
+                    f"{mytardis_object.dataset.directory.as_posix()}-",
+                    f"{mytardis_object.dataset.name}-",
+                    f"{mytardis_object.version}",
+                ]
+            )
+        case _:
+            obj_name = mytardis_object.name
+    return slugify(obj_name)

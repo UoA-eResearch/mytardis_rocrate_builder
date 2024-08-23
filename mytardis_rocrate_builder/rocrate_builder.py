@@ -4,28 +4,34 @@
 
 import logging
 import re
-import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Self
 
+from rocrate.encryption_utils import NoValidKeysError
 from rocrate.model.contextentity import ContextEntity
 from rocrate.model.data_entity import DataEntity
 from rocrate.model.encryptedcontextentity import EncryptedContextEntity
 from rocrate.model.person import Person as ROPerson
 from rocrate.rocrate import ROCrate
 
-from .rocrate_dataclasses.rocrate_dataclasses import (
+from .rocrate_dataclasses.rocrate_dataclasses import (  # Group,
     ACL,
+    BaseObject,
     ContextObject,
     Datafile,
     Dataset,
     Experiment,
+    Facility,
+    Group,
+    Instrument,
+    License,
     MTMetadata,
     MyTardisContextObject,
     Organisation,
     Person,
     Project,
+    User,
 )
 
 MT_METADATA_SCHEMATYPE = "my_tardis_metadata"
@@ -33,6 +39,20 @@ logger = logging.getLogger(__name__)
 
 JsonProperties = Dict[str, str | List[str] | Dict[str, Any]]
 IdentiferType = str | int | float
+
+
+def serialize_optional_date(date: datetime | None) -> str | None:
+    """Serialize a date to iso format, if it exists
+
+    Args:
+        date (datetime | None): the date to be serialized
+
+    Returns:
+        the date as an iso string or none
+    """
+    if date is None:
+        return date
+    return date.isoformat()
 
 
 class ROBuilder:
@@ -56,71 +76,107 @@ class ROBuilder:
         self.crate = crate
         self.flatten_additional_properties = flatten_additional_properties
 
-    def _add_metadata_to_crate(
-        self, metadata_obj: MTMetadata, metadata_id: str, parent_id: IdentiferType
-    ) -> ContextEntity | None:
-        """Add a MyTardis Metadata object to the crate
+    def dereference_or_add(
+        self,
+        add_func: Callable[[Self, BaseObject], ContextEntity],
+        added_object: BaseObject,
+    ) -> Any:
+        """Return the entity if it exists within the crate otherwise add it"""
 
-        Args:
-            metadata_obj (MTMetadata): the MyTardis Metadata object
-            metadata_id (str): the id used to identify the entity in the crate
-        """
-
-        if metadata_obj.sensitive:
-            if not self.crate.pubkey_fingerprints:
-                return None
-            metadata = EncryptedContextEntity(
-                self.crate,
-                metadata_id,
-                properties={
-                    "@type": MT_METADATA_SCHEMATYPE,
-                    "name": metadata_obj.name,
-                    "value": metadata_obj.value,
-                    "myTardis-type": metadata_obj.mt_type,
-                    "sensitive": metadata_obj.sensitive,
-                    "parents": [parent_id],
-                },
-                pubkey_fingerprints=[],
-            )
-        else:
-            metadata = ContextEntity(
-                self.crate,
-                metadata_id,
-                properties={
-                    "@type": MT_METADATA_SCHEMATYPE,
-                    "name": metadata_obj.name,
-                    "value": metadata_obj.value,
-                    "myTardis-type": metadata_obj.mt_type,
-                    "sensitive": metadata_obj.sensitive,
-                    "parents": [parent_id],
-                },
+        def wrapper(added_object: BaseObject) -> ContextEntity:
+            return self.crate.dereference(added_object.roc_id) or add_func(
+                self, added_object
             )
 
-        return self.crate.add(metadata)
+        return wrapper(added_object)
 
-    def _add_object_acls(
-        self, properties: JsonProperties, acls: List[ACL], partent_id: IdentiferType
-    ) -> JsonProperties:
-        """add access level controls to an object
+    def _add_optional_attr(
+        self, entity: ContextEntity, label: str, value: Any, compact: bool = False
+    ) -> None:
+        if value is None:
+            return
+        if isinstance(value, MyTardisContextObject):
+            value_entity = self.crate.dereference(
+                value.roc_id
+            ) or self.add_my_tardis_obj(value)
+            value = value_entity
+            entity.append_to(label, value=value, compact=compact)
+            return
+        entity.append_to(label, value=value, compact=compact)
+
+    def _add_acl_to_crate(self, acl: ACL) -> ContextEntity:
+        """Add an individual ACL to the RO-Crate
 
         Args:
-            properties (Dict[str, str | List[str] | Dict[str,str]]):
-                the properties dict of the parent object
-            acls (List[ACL]): lsit of access level control objects
-            partent_id (str): the id of the parent object
+            acl (ACL): the ACL to be added
 
         Returns:
-            JsonProperties: the properties updated with the ACLs
+            DataEntity: the RO-Crate context entity representing the ACL
         """
-        has_digital_permission = []
-        for acl in acls:
-            acl_entity = self.crate.dereference(acl.id) or self.add_acl(acl)
-            acl_entity.append_to("subjectOf", partent_id)
-            has_digital_permission.append(acl_entity.id)
-        properties["hasDigitalDocumentPermission"] = has_digital_permission
-        return properties
 
-    def __add_organisation(self, organisation: Organisation) -> None:
+        identifier = acl.id
+        properties = {
+            "@type": acl.schema_type,
+            "permission_type": acl.permission_type,
+            "grantee_type": acl.grantee_type,
+            "my_tardis_can_download": acl.mytardis_can_download,
+            "mytardis_owner": acl.mytardis_owner,
+            "mytardis_see_sensitive": acl.mytardis_see_sensitive,
+        }
+        return self.crate.add(
+            ContextEntity(self.crate, identifier, properties=properties)
+        )
+
+    def add_acl(self, acl: ACL) -> ContextEntity | None:
+        """Add an ACL to the RO-Crate.
+         updating relationships between ACL and parents
+
+        Args:
+            acl (ACL): the ACL to be added
+
+        Returns:
+            ContextEntity | None: the ACL as a context entity
+        """
+        acl_entity = self.crate.dereference(acl.roc_id) or self._add_acl_to_crate(acl)
+        parent_entitiy = self.crate.dereference(
+            acl.parent.roc_id
+        ) or self.add_my_tardis_obj(acl.parent)
+        if grantee_entity := self.crate.dereference(acl.grantee.roc_id):
+            pass
+        else:
+            match acl.grantee:
+                case Group():
+                    grantee_entity = self.add_group(acl.grantee)
+                case Person():
+                    grantee_entity = self.add_user(acl.grantee)
+        grantee_entity.append_to("granteeOf", acl_entity)
+        acl_entity.append_to("subjectOf", parent_entitiy)
+        acl_entity.append_to("grantee", grantee_entity)
+        parent_entitiy.append_to("hasDigitalDocumentPermission", acl_entity)
+        return acl_entity
+
+    def add_group(self, group: Group) -> ContextEntity:
+        """Add a group to the crate
+
+        Args:
+            group (Group): the group dataclass to be added
+
+        Returns:
+            ContextEntity: the group as an RO-Crate context object
+        """
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate,
+                identifier=group.id,
+                properties={
+                    "@type": group.schema_type,
+                    "name": group.name,
+                    "permissions": group.permissions,
+                },
+            )
+        )
+
+    def __add_organisation(self, organisation: Organisation) -> ContextEntity:
         """Read in an Organisation object and create a Organization entity in the crate
 
         Args:
@@ -138,13 +194,10 @@ class ROBuilder:
                 "name": organisation.name,
             },
         )
-        if organisation.url:
-            org.append_to("url", organisation.url)
-        if len(organisation.identifiers) > 1:
-            for index, identifier in enumerate(organisation.identifiers):
-                if index != 0:
-                    org.append_to("identifier", identifier)
-        self.crate.add(org)
+        self._add_optional_attr(org, "url", organisation.url)
+        for _, mt_identifier in enumerate(organisation.mt_identifiers):
+            org.append_to("mt_identifiers", mt_identifier)
+        return self.crate.add(org)
 
     def __add_person_to_crate(self, person: Person) -> ROPerson:
         """Read in a Person object and create an entry for them in the crate.
@@ -154,23 +207,30 @@ class ROBuilder:
         Args:
             person (Person): the person to add to the crate
         """
-        orcid_regex = re.compile(
-            r"https://orcid\.org/[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]{1}"
-        )
+
+        # orcid_regex = re.compile(
+        #     r"https://orcid\.org/[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]{1}"
+        # )
         upi_regex = re.compile(r"^[a-z]{2,4}[0-9]{3}$")
-        person_id = None
-        # Check to see if any of the identifiers are orcids - these are preferred
-        for identifier in person.identifiers:
-            if _ := orcid_regex.fullmatch(identifier):
-                person_id = identifier
+        person_id = person.id
+        # # Check to see if any of the mt_identifiers are orcids - these are preferred
+        # for identifier in person.mt_identifiers:
+        #     if _ := orcid_regex.fullmatch(identifier):
+        #         person_id = identifier
         # If no orcid is found check for UPIs
-        if not person_id:
-            for identifier in person.identifiers:
+        if not upi_regex.fullmatch(str(person_id)):
+            for identifier in person.mt_identifiers:
                 if _ := upi_regex.fullmatch(identifier):
                     person_id = identifier
         # Finally, if no orcid or UPI is found, use the first identifier
-        if not person_id:
-            person_id = person.identifiers[0]
+        # if not person_id:
+        #     person_id = person.mt_identifiers[0]
+        person_obj = ROPerson(
+            self.crate,
+            person_id,
+            properties={"name": person.name, "email": person.email},
+        )
+
         if not any(
             (
                 entity.type in ["Organization", "ResearchOrganization"]
@@ -178,22 +238,53 @@ class ROBuilder:
             )
             for entity in self.crate.get_entities()
         ):
-            self.__add_organisation(person.affiliation)
-        person_obj = ROPerson(
-            self.crate,
-            person_id,
-            properties={
-                "name": person.name,
-                "email": person.email,
-                "affiliation": person.affiliation.id,
-            },
-        )
-        if len(person.identifiers) > 1:
-            for identifier in person.identifiers:
-                if identifier != person_id:
-                    person_obj.append_to("identifier", identifier)
+            person_obj.append_to(
+                "affiliation", self.__add_organisation(person.affiliation)
+            )
+        for identifier in person.mt_identifiers:
+            if identifier != person_id:
+                person_obj.append_to("mt_identifier", identifier)
         self.crate.add(person_obj)
         return person_obj
+
+    def add_user(self, user: User) -> ROPerson:
+        """Add a mytardis django user to the crate,
+        including adding this user as a person.
+
+        Args:
+            user (User): the user to be added
+
+        Returns:
+            ROPerson: the user as an RO-Crate entity
+        """
+        user_entity: ROPerson = self.crate.dereference(
+            user.roc_id
+        ) or self.__add_person_to_crate(user)
+        if user.groups:
+            for group in user.groups:
+                ro_group = self.crate.dereference(group.roc_id) or self.add_group(group)
+                ro_group.append_to("has_member", user_entity)
+                user_entity.append_to("groups", ro_group)
+        self._add_optional_attr(user_entity, "permissions", user.permissions)
+        self._add_optional_attr(
+            user_entity, "isDjangoAccount", user.is_django_account, True
+        )
+        self._add_optional_attr(user_entity, "is_staff", user.is_staff, True)
+        self._add_optional_attr(
+            user_entity, "hashed_password", user.hashed_password, True
+        )
+        self._add_optional_attr(user_entity, "is_active", user.is_active, True)
+        if user.last_login:
+            user_entity.append_to(
+                "last_login", serialize_optional_date(user.last_login), True
+            )
+        if user.date_joined:
+            user_entity.append_to(
+                "date_joined", serialize_optional_date(user.date_joined), True
+            )
+        if user.pubkey_fingerprints:
+            user_entity.append_to("pubkey_fingerprints", user.pubkey_fingerprints)
+        return user_entity
 
     def add_principal_investigator(self, principal_investigator: Person) -> ROPerson:
         """Read in the principal investigator from the project and create an entry for them
@@ -212,65 +303,112 @@ class ROBuilder:
         """
         return [self.__add_person_to_crate(contributor) for contributor in contributors]
 
-    def _add_identifiers(
+    def _add_mt_identifiers(
         self,
         obj_dataclass: ContextObject,
         rocrate_obj: ContextEntity | DataEntity,
     ) -> ContextEntity | DataEntity:
-        """Boilerplate code to add identifiers to the RO Crate objects
+        """Boilerplate code to add mt_identifiers to the RO Crate objects
 
         Args:
             obj_dataclass (BaseObject): A Project, Experiment or Dataset object
             rocrate_obj (ContextEntity | DataEntity): A RO-Crate object that the
-                identifiers are added to
+                mt_identifiers are added to
 
         Returns:
             ContextEntity | DataEntity: The modified RO-Crate object
         """
-        if len(obj_dataclass.identifiers) > 1:
-            for index, identifier in enumerate(obj_dataclass.identifiers):
-                if index != 0:
-                    rocrate_obj.append_to("identifiers", identifier)
+        if obj_dataclass.mt_identifiers is None:
+            return self.crate.add(rocrate_obj)
+        for _, identifier in enumerate(obj_dataclass.mt_identifiers):
+            if rocrate_obj.id != identifier:
+                rocrate_obj.append_to("mt_identifiers", str(identifier))
         self.crate.add(rocrate_obj)
         return rocrate_obj
 
+    def _add_metadata_to_crate(self, metadata_obj: MTMetadata) -> ContextEntity | None:
+        """Add a MyTardis Metadata object to the crate
+
+        Args:
+            metadata_obj (MTMetadata): the MyTardis Metadata object
+        """
+        if metadata_obj.sensitive:
+            if metadata_obj.recipients is None:
+                raise NoValidKeysError(
+                    f"""No recipents found for encrypted metadata:
+                        {metadata_obj.identifier}""",
+                )
+            recipents = [
+                self.crate.dereference(recipient.roc_id) or self.add_user(recipient)
+                for recipient in metadata_obj.recipients
+                if recipient.pubkey_fingerprints
+            ]
+            if len(recipents) < 1:
+                raise NoValidKeysError(
+                    f"""No valid recipents with public keys for encrypted metadata:
+                    {metadata_obj.identifier}""",
+                )
+            metadata = EncryptedContextEntity(
+                self.crate,
+                metadata_obj.id,
+                properties={
+                    "@type": MT_METADATA_SCHEMATYPE,
+                    "name": metadata_obj.name,
+                    "value": metadata_obj.value,
+                    "myTardis-type": metadata_obj.mt_type,
+                    "sensitive": metadata_obj.sensitive,
+                    "mytardis-schema": metadata_obj.mt_schema,
+                },
+            )
+            metadata.append_to("recipients", recipents)
+        else:
+            metadata = ContextEntity(
+                self.crate,
+                metadata_obj.id,
+                properties={
+                    "@type": MT_METADATA_SCHEMATYPE,
+                    "name": metadata_obj.name,
+                    "value": metadata_obj.value,
+                    "myTardis-type": metadata_obj.mt_type,
+                    "sensitive": metadata_obj.sensitive,
+                    "mytardis-schema": metadata_obj.mt_schema,
+                },
+            )
+
+        return self.crate.add(metadata)
+
     def _crate_contains_metadata(self, metadata: MTMetadata) -> ContextEntity | None:
-        if crate_metadata := self.crate.dereference(metadata.ro_crate_id):
+        if crate_metadata := self.crate.dereference(metadata.roc_id):
             if metadata.name == crate_metadata.get(
                 "name"
             ) and metadata.value == crate_metadata.get("value"):
                 return crate_metadata
         return None
 
-    def _add_metadata(
+    def add_metadata(
         self,
-        parent_name: IdentiferType,
-        properties: JsonProperties,
-        metadata: Dict[str, MTMetadata],
-    ) -> JsonProperties:
-        """Add generic metadata to the properties dictionary for a RO-Crate obj
+        metadata: MTMetadata,
+    ) -> ContextEntity | None:
+        """Add a metadata object to the RO-Crate
+        generates parents and adds associated metadata if present
 
         Args:
-            properties (JsonProperties): The properties to be
-                added to the RO-Crate
-            metadata (JsonProperties): A dictionary of metadata
-                to be added to the RO-Crate obj
-
+            metadata (MTMetadata): the MyTardis metadata to add to the RO-Crate
         Returns:
-            Dict[str, str|List[str]|Dict[str, Any]]: The updated properties dictionary
+            ContextEntity | None: the metadata as an RO-Crate entity
         """
-        properties["metadata"] = []
-        for _, metadata_object in metadata.items():
-            if metadata_object.parents is None:
-                metadata_object.parents = [str(parent_name)]
-            metadata_id = str(uuid.uuid4())
-            if existing_metadata := self._crate_contains_metadata(metadata_object):
-                existing_metadata.append_to("parents", parent_name)
-            else:
-                self._add_metadata_to_crate(metadata_object, metadata_id, parent_name)
-            if metadata_id not in properties["metadata"]:  # pylint: disable=C0201
-                properties["metadata"].append(metadata_id)  # type: ignore
-        return properties
+        metadata_obj = self._crate_contains_metadata(
+            metadata
+        ) or self._add_metadata_to_crate(metadata)
+        if not metadata_obj:
+            return None
+        parent_obj = self.crate.dereference(
+            metadata.parent.roc_id
+        ) or self.add_my_tardis_obj(metadata.parent)
+        metadata_obj.append_to("parents", parent_obj)
+        parent_obj.append_to("metadata", metadata_obj)
+
+        return metadata_obj
 
     def _add_additional_properties(
         self,
@@ -278,9 +416,6 @@ class ROBuilder:
         additional_properties: Dict[str, Any],
     ) -> JsonProperties:
         entity_properties = properties
-        if not self.flatten_additional_properties:
-            properties["additonal properties"] = {}
-            entity_properties = properties["additonal properties"]
         for key, value in additional_properties.items():
             if isinstance(value, List):
                 for index, item in enumerate(value):
@@ -328,14 +463,6 @@ class ROBuilder:
     def _update_properties(
         self, data_object: MyTardisContextObject, properties: JsonProperties
     ) -> JsonProperties:
-        if data_object.metadata:
-            properties = self._add_metadata(
-                data_object.id, properties, data_object.metadata
-            )
-        if data_object.acls:
-            properties = self._add_object_acls(
-                properties, data_object.acls, data_object.id
-            )
         if data_object.date_created:
             properties = self._add_dates(
                 properties,
@@ -346,6 +473,10 @@ class ROBuilder:
             properties = self._add_additional_properties(
                 properties=properties,
                 additional_properties=data_object.additional_properties,
+            )
+        if data_object.mytardis_classification:
+            properties["mytardis_classification"] = str(
+                data_object.mytardis_classification
             )
         return properties
 
@@ -361,12 +492,11 @@ class ROBuilder:
         contributors = []
         if project.contributors:
             contributors = self.add_contributors(project.contributors)
-        properties = {
+
+        properties: Dict[str, str | list[str] | dict[str, Any]] = {
             "@type": "Project",
             "name": project.name,
             "description": project.description,
-            "principal_investigator": principal_investigator.id,
-            "contributors": [contributor.id for contributor in contributors],
         }
 
         properties = self._update_properties(data_object=project, properties=properties)
@@ -376,12 +506,41 @@ class ROBuilder:
             properties=properties,
         )
 
-        return self._add_identifiers(project, project_obj)
+        project_obj.append_to("principal_investigator", principal_investigator)
+        project_obj.append_to("contributors", contributors)
+        if project.institution:
+            parent_organization = self.crate.dereference(
+                project.institution.roc_id
+            ) or self.__add_organisation(project.institution)
+            project_obj.append_to("parentOrganization", parent_organization)
+            parent_organization.append_to("Projects", project_obj)
+
+        self._add_optional_attr(
+            project_obj,
+            "embargo_until",
+            serialize_optional_date(project.embargo_until),
+            True,
+        )
+        self._add_optional_attr(
+            project_obj, "start_time", serialize_optional_date(project.start_time), True
+        )
+        self._add_optional_attr(
+            project_obj, "end_time", serialize_optional_date(project.end_time), True
+        )
+        if project.created_by is not None:
+            creator = self.crate.dereference(
+                project.created_by.roc_id
+            ) or self.add_user(project.created_by)
+            creator.append_to("creator", project_obj)
+            self._add_optional_attr(project_obj, "createdBy", creator)
+        self._add_optional_attr(project_obj, "url", project.url)
+        return self._add_mt_identifiers(project, project_obj)
 
     def _update_experiment_meta(
         self,
         experiment: Experiment,
         properties: JsonProperties,
+        projects: List[ContextEntity],
     ) -> ContextEntity:
         """Update the metadata for an experiment and create the context entity for the experiment
 
@@ -395,11 +554,38 @@ class ROBuilder:
         properties = self._update_properties(
             data_object=experiment, properties=properties
         )
-        return ContextEntity(
+        experiment_entity = ContextEntity(
             self.crate,
             identifier,
             properties=properties,
         )
+        self._add_optional_attr(experiment_entity, "url", experiment.url)
+        self._add_optional_attr(
+            experiment_entity, "url", serialize_optional_date(experiment.start_time)
+        )
+        self._add_optional_attr(
+            experiment_entity, "url", serialize_optional_date(experiment.end_time)
+        )
+        if experiment.created_by:
+            creator_entity = self.crate.dereference(
+                experiment.created_by.roc_id
+            ) or self.add_user(experiment.created_by)
+            experiment_entity.append_to("createdBy", creator_entity)
+            creator_entity.append_to("created", experiment_entity.id)
+        self._add_optional_attr(experiment_entity, "locked", experiment.locked, True)
+        self._add_optional_attr(experiment_entity, "handle", experiment.handle)
+        self._add_optional_attr(
+            experiment_entity, "approved", experiment.approved, True
+        )
+        if experiment.sd_license:
+            license_entity = experiment.sd_license
+            if isinstance(experiment.sd_license, License):
+                license_entity = self.crate.dereference(
+                    experiment.sd_license.roc_id
+                ) or self.add_license(experiment.sd_license)
+            experiment_entity.append_to("sdLicense", license_entity)
+        experiment_entity.append_to("project", projects)
+        return experiment_entity
 
     def add_experiment(self, experiment: Experiment) -> ContextEntity:
         """Add an experiment to the RO crate
@@ -411,24 +597,19 @@ class ROBuilder:
         # fits
         projects = []
         for project in experiment.projects:
-            if crate_project := self.crate.dereference("#" + str(project.id)):
-                projects.append(crate_project.id)
+            if crate_project := self.crate.dereference(project.roc_id):
+                projects.append(crate_project)
             else:
-                projects.append(self.add_project(project).id)
-        # projects: List[Project] = [
-        #     self.crate.dereference("#" + project.id).id
-        #     for project in experiment.projects
-        # ]
+                projects.append(self.add_project(project))
         properties: JsonProperties = {
             "@type": "DataCatalog",
             "name": experiment.name,
             "description": experiment.description,
-            "project": projects,
         }
         experiment_obj = self._update_experiment_meta(
-            experiment=experiment, properties=properties
+            experiment=experiment, properties=properties, projects=projects
         )
-        return self._add_identifiers(experiment, experiment_obj)
+        return self._add_mt_identifiers(experiment, experiment_obj)
 
     def add_dataset(self, dataset: Dataset) -> DataEntity:
         """Add a dataset to the RO crate
@@ -440,50 +621,48 @@ class ROBuilder:
         identifier = directory.as_posix()
         if identifier != dataset.id:
             logger.warning(
-                "dataset identifiers should be relative filepaths updating %s to %s",
+                "dataset identifier should be relative filepaths updating %s to %s",
                 dataset.id,
                 identifier,
             )
-            dataset.identifiers = [identifier] + dataset.identifiers  # type: ignore
         experiments = []
         for experiment in dataset.experiments:
-            if crate_experiment := self.crate.dereference("#" + str(experiment.id)):
-                experiments.append(crate_experiment.id)
+            if crate_experiment := self.crate.dereference(experiment.roc_id):
+                experiments.append(crate_experiment)
             else:
-                experiments.append(self.add_experiment(experiment).id)
+                experiments.append(self.add_experiment(experiment))
 
         properties: JsonProperties = {
-            "identifiers": identifier,
             "name": dataset.name,
             "description": dataset.description,
-            "includedInDataCatalog": experiments,
         }
-        instrument_id = dataset.instrument.id
-        if dataset.instrument and isinstance(dataset.instrument, ContextObject):
-            instrument_id = self.add_context_object(dataset.instrument).id
-        properties["instrument"] = str(instrument_id)
+        instrument = dataset.instrument
+        if (
+            dataset.instrument
+            and isinstance(dataset.instrument, ContextObject)
+            and not self.crate.dereference(dataset.instrument.roc_id)
+        ):
+            instrument = self.add_instrument(dataset.instrument)
         properties = self._update_properties(data_object=dataset, properties=properties)
 
         if identifier == ".":
             logger.debug("Updating root dataset")
             self.crate.root_dataset.properties().update(properties)
             self.crate.root_dataset.source = (
-                self.crate.source / Path(directory)
-                if self.crate.source
-                else Path(directory)
+                self.crate.source / Path(directory) if self.crate.source else None
             )
             dataset_obj = self.crate.root_dataset
         else:
             dataset_obj = self.crate.add_dataset(
                 source=(
-                    self.crate.source / Path(directory)
-                    if self.crate.source
-                    else Path(directory)
+                    self.crate.source / Path(directory) if self.crate.source else None
                 ),
                 properties=properties,
                 dest_path=Path(directory),
             )
-        return self._add_identifiers(dataset, dataset_obj)
+        dataset_obj.append_to("includedInDataCatalog", experiments)
+        dataset_obj.append_to("instrument", instrument)
+        return self._add_mt_identifiers(dataset, dataset_obj)
 
     def add_datafile(self, datafile: Datafile) -> DataEntity:
         """Add a datafile to the RO-Crate,
@@ -495,66 +674,50 @@ class ROBuilder:
         Returns:
             DataEntity: the datafile RO-Crate entity that will be written to the json-LD
         """
-        identifier = datafile.filepath.as_posix()
+        identifier = (datafile.dataset.directory / datafile.filepath).as_posix()
         if identifier != datafile.id:
             logger.warning(
-                "datafile identifiers should be relative filepaths updating %s to %s",
+                "datafile mt_identifiers should be relative filepaths updating %s to %s",
                 datafile.id,
                 identifier,
             )
-            datafile.identifiers = [identifier] + datafile.identifiers  # type: ignore
+            datafile.mt_identifiers.extend([identifier])  # type: ignore
         properties: Dict[str, Any] = {
-            "name": datafile.name,
+            "name": str(datafile.name),
             "description": datafile.description,
+            "datafileVersion": datafile.version,
         }
         properties = self._update_properties(
             data_object=datafile, properties=properties
         )
-        source = (
-            self.crate.source / datafile.filepath
-            if self.crate.source and (self.crate.source / datafile.filepath).exists()
-            else identifier
-        )
-        dataset_obj: DataEntity = self.crate.dereference(datafile.dataset.id)
+        dataset_obj: DataEntity = self.crate.dereference(
+            datafile.dataset.roc_id
+        ) or self.add_dataset(datafile.dataset)
         if not dataset_obj:
             dataset_obj = self.crate.root_dataset
-        properties["dataset"] = dataset_obj.id
-        destination_path = source
+
+        try:
+            destination_path = Path(dataset_obj.id) / datafile.filepath.relative_to(
+                Path(dataset_obj.id)
+            )
+        except ValueError:
+            destination_path = Path(dataset_obj.id) / datafile.filepath.name
+
+        source = (
+            self.crate.source / destination_path
+            if self.crate.source and (self.crate.source / destination_path).exists()
+            else destination_path
+        )
+
         datafile_obj = self.crate.add_file(
             source=source,
             properties=properties,
             dest_path=destination_path,
         )
+        datafile_obj.append_to("dataset", dataset_obj)
         logger.info("Adding File to Crate %s", identifier)
         dataset_obj.append_to("hasPart", datafile_obj)
-        return self._add_identifiers(datafile, datafile_obj)
-
-    def add_acl(self, acl: ACL) -> DataEntity:
-        """Add an individual ACL to the RO-Crate
-
-        Args:
-            acl (ACL): the ACL to be added
-
-        Returns:
-            DataEntity: the RO-Crate context entity representing the ACL
-        """
-        if not self.crate.dereference(acl.grantee):
-            self.add_context_object(
-                context_object=ContextObject(
-                    name=f"{acl.grantee} ACL holder",
-                    description=f"Owner of ACL: {acl.grantee}",
-                    identifiers=[acl.grantee],
-                    schema_type=(
-                        ["Organization"]
-                        if "organization" in acl.grantee_type
-                        else ["Person"]
-                    ),
-                    date_created=None,
-                    date_modified=None,
-                    additional_properties=None,
-                )
-            )
-        return self.add_context_object(acl)
+        return self._add_mt_identifiers(datafile, datafile_obj)
 
     def add_context_object(self, context_object: ContextObject) -> DataEntity:
         """Add a generic context object to the RO crate
@@ -570,7 +733,7 @@ class ROBuilder:
         properties = {
             key: value
             for key, value in context_object.__dict__.items()
-            if value is not None
+            if value is not None and key != "identifier"
         }
         if properties.get("schema_type"):
             properties["@type"] = properties.pop("schema_type")
@@ -586,3 +749,116 @@ class ROBuilder:
             ContextEntity(self.crate, identifier, properties=properties)
         )
         return context_entitiy
+
+    def add_facillity(self, facility: Facility) -> ContextEntity:
+        """add a facility as a location to the RO-Crate
+
+        Args:
+            facility (Facility): the faciltiy object
+
+        Returns:
+            ContextEntity: the facility as an RO-crate object
+        """
+
+        properties: JsonProperties = {
+            "@type": facility.schema_type,
+            "name": facility.name,
+            "description": facility.description,
+        }
+        if facility.manager_group:
+            manager_group = self.crate.dereference(
+                facility.manager_group.roc_id
+            ) or self.add_group(facility.manager_group)
+            properties["manager_group"] = manager_group.id
+        properties = self._update_properties(facility, properties=properties)
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=facility.id, properties=properties
+            )
+        )
+
+    def add_instrument(self, instrument: Instrument) -> ContextEntity:
+        """Add an instrument to the RO-Crate
+
+        Args:
+            instrument (Instrument): the instrument object
+
+        Returns:
+            ContextEntity: the instrument as an RO-Crate entity
+        """
+        facility_location = self.crate.dereference(
+            instrument.location.roc_id
+        ) or self.add_facillity(instrument.location)
+        properties: JsonProperties = {
+            "@type": instrument.schema_type,
+            "name": instrument.name,
+            "description": instrument.description,
+            "location": facility_location.id,
+        }
+        facility_location.append_to("containedInPlace", instrument.id)
+        properties = self._update_properties(instrument, properties=properties)
+        return self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=instrument.id, properties=properties
+            )
+        )
+
+    def add_license(self, license_object: License) -> ContextEntity:
+        """Add a License that should be associated with an experiment to the RO-Crate
+
+        Args:
+            License (License): the License as a context object
+
+        Returns:
+            ContextEntity: the License entity in the RO-Crate
+        """
+        properties: JsonProperties = {
+            "@type": str(license_object.schema_type),
+            "name": license_object.name,
+            "description": license_object.description,
+        }
+        license_entity = self.crate.add(
+            ContextEntity(
+                crate=self.crate, identifier=license_object.id, properties=properties
+            )
+        )
+
+        self._add_optional_attr(
+            license_entity,
+            "allows_distribution",
+            license_object.allows_distribution,
+            True,
+        )
+        self._add_optional_attr(
+            license_entity, "is_active", license_object.is_active, True
+        )
+        self._add_optional_attr(
+            license_entity, "image", license_object.image_url, False
+        )
+        return license_entity
+
+    def add_my_tardis_obj(self, obj: MyTardisContextObject) -> ContextEntity:
+        """Add a MyTardis object of unknown type to the RO-Crate
+
+        Args:
+            obj (MyTardisContextObject): the my tardis object to be added to the crate
+
+        Returns:
+            ContextEntity: the my tardis object as an RO-Crate entity
+        """
+        match obj:
+            case Project():
+                entity = self.add_project(obj)
+            case Experiment():
+                entity = self.add_experiment(obj)
+            case Dataset():
+                entity = self.add_dataset(obj)
+            case Datafile():
+                entity = self.add_datafile(obj)
+            case Facility():
+                entity = self.add_facillity(obj)
+            case Instrument():
+                entity = self.add_instrument(obj)
+            case _:
+                entity = self.add_context_object(obj)
+        return entity
