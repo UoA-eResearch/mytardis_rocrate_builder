@@ -543,7 +543,7 @@ def test_manifest(
     test_org_ACL,
 ):
     return CrateManifest(
-        projcets={test_project.id: test_project},
+        projects={test_project.id: test_project},
         experiments={test_experiment.id: test_experiment},
         datafiles=[test_datafile],
         datasets={test_dataset.id: test_dataset},

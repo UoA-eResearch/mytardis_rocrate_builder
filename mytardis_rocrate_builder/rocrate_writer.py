@@ -66,7 +66,7 @@ def write_crate(
         ROCrate: _The RO-Crate object that has been written
     """
     logger.info("adding projects")
-    _ = [builder.add_project(project) for project in crate_contents.projcets.values()]
+    _ = [builder.add_project(project) for project in crate_contents.projects.values()]
     logger.info("adding experiments")
     _ = [
         builder.add_experiment(experiment)

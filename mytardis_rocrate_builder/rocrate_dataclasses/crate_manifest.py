@@ -13,7 +13,7 @@ class CrateManifest:
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
-        projcets: Optional[Dict[str, Project]] = None,
+        projects: Optional[Dict[str, Project]] = None,
         experiments: Optional[Dict[str, Experiment]] = None,
         datasets: Optional[Dict[str, Dataset]] = None,
         datafiles: Optional[List[Datafile]] = None,
@@ -21,7 +21,7 @@ class CrateManifest:
         acls: Optional[List[ACL]] = None,
         identifier: Optional[str] = None,
     ):
-        self.projcets = projcets or {}
+        self.projects = projects or {}
         self.experiments = experiments or {}
         self.datasets = datasets or {}
         self.datafiles = []
@@ -35,8 +35,8 @@ class CrateManifest:
             self.acls.extend(acls)
         self.identifier = identifier or ""
 
-    def add_projects(self, projcets: Dict[str, Project]) -> None:
-        self.projcets = self.projcets | projcets
+    def add_projects(self, projects: Dict[str, Project]) -> None:
+        self.projects = self.projects | projects
 
     def add_experiments(self, experiments: Dict[str, Experiment]) -> None:
         self.experiments = self.experiments | experiments
@@ -72,9 +72,9 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
             out_experiments[str(experiment.id)] = out_experiment
             project_ids.update(str(project.id) for project in out_experiment.projects)
     out_projects: Dict[str, Project] = {
-        project_id: in_manifest.projcets[project_id]
+        project_id: in_manifest.projects[project_id]
         for project_id in project_ids
-        if in_manifest.projcets.get(project_id)
+        if in_manifest.projects.get(project_id)
     }
 
     out_files = [
@@ -105,7 +105,7 @@ def reduce_to_dataset(in_manifest: CrateManifest, dataset: Dataset) -> CrateMani
             outacls.append(acl)
 
     return CrateManifest(
-        projcets=out_projects,
+        projects=out_projects,
         experiments=out_experiments,
         datasets={str(dataset.id): dataset},
         datafiles=out_files,

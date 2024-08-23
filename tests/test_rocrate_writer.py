@@ -119,7 +119,7 @@ def test_reduce_to_dataset(
     test_manifest: CrateManifest, test_datafile, test_dataset, tmpdir, data_dir, builder
 ):
     manifest_with_extras = CrateManifest(
-        projcets=test_manifest.projcets,
+        projects=test_manifest.projects,
         experiments=test_manifest.experiments,
         datasets=test_manifest.datasets,
         datafiles=test_manifest.datafiles,
@@ -153,8 +153,8 @@ def test_reduce_to_dataset(
     manifest_with_extras.add_metadata([Metadata()])
     manifest_with_extras.add_acls([ACL()])
     out_manifest = reduce_to_dataset(manifest_with_extras, test_dataset)
-    assert out_manifest.projcets == test_manifest.projcets
-    assert out_manifest.projcets != manifest_with_extras.projcets
+    assert out_manifest.projects == test_manifest.projects
+    assert out_manifest.projects != manifest_with_extras.projects
 
     assert out_manifest.experiments == test_manifest.experiments
     assert out_manifest.experiments != manifest_with_extras.experiments
