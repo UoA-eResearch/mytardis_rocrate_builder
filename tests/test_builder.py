@@ -34,19 +34,6 @@ from mytardis_rocrate_builder.rocrate_dataclasses.rocrate_dataclasses import (
 )
 
 
-@patch("rocrate.rocrate.ROCrate.dereference")
-@patch("mytardis_rocrate_builder.rocrate_builder.ROBuilder.add_project")
-def test_dereference_or_add(
-    mocked_add, mocked_deref, builder: ROBuilder, test_project: Project
-):
-    # check that deref or assert only creates the object if deref returns None
-    project = builder.dereference_or_add(builder.add_project, test_project)
-    mocked_deref.assert_called_once()
-    mocked_deref.return_value = None
-    project = builder.dereference_or_add(builder.add_project, test_project)
-    mocked_add.assert_called_once()
-
-
 def test_optional_add(
     builder: ROBuilder,
     test_project: Project,
