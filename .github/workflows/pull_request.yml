@@ -1,0 +1,46 @@
+name: Test and Lint RO-Crate generation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+    name: Python ${{ matrix.python-version }}
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+
+    - name: Install Dependencies
+      run: poetry install
+      if: steps.cache.outputs.cache-hit != 'true'
+
+    - name: isort - check import formatting
+      run: poetry run python -m isort --check --diff --profile black mytardis_rocrate_builder/
+
+    - name: Black - check code formatting
+      run: poetry run python -m black --check --diff .
+
+    # - name: pytest - run the tests
+    #   run: poetry run python -m pytest -v --cov=src/ tests/
+
+    - name: pylint - static code analysis
+      run: poetry run python -m pylint --rcfile .pylintrc mytardis_rocrate_builder/
+
+    - name: mypy - load types
+      run: poetry run mypy --install-types --non-interactive
+
+    - name: mypy - static type checking
+      # Takes configuration from pyproject.toml
+      run: poetry run python -m mypy
