@@ -3,6 +3,7 @@
 
 import logging
 import os
+import shutil
 import tarfile
 import zipfile
 from pathlib import Path
@@ -98,7 +99,7 @@ def write_crate(
 
 
 def bagit_crate(crate_path: Path, contact_name: str) -> None:
-    """Put an RO-Crate into a bagit archive, moving all contents down one directory
+    """Put an RO-Crate into a bagit archive, moving all contents down one directory.
 
     Args:
         crate_path (Path): location of the RO-Crate
@@ -112,11 +113,58 @@ def bagit_crate(crate_path: Path, contact_name: str) -> None:
     )
 
 
+def get_manifests_in_crate(root_dir: Path) -> List[Path]:
+    """Return a list of all manifest type files in the RO-Crate.
+
+    Args:
+        root_dir (Path): root directory of the RO-Crate
+
+    Returns:
+        List[Path]: a list of all bagit manifest or RO-crate metadata paths
+    """
+    result: List[Path] = []
+    # avoid recursion as RO-Crates may contain a large volume of files
+    result.extend(root_dir.glob("*manifest-*.txt"))
+    if len(result) > 0:  # if there is a bagit manifest check data dir
+        ro_crates = (root_dir / "data").glob("*ro-crate-metadata.json")
+        result.extend([Path("data") / crate_path for crate_path in ro_crates])
+        return result
+    # otherwise check for un-bagged RO-Crate
+    result.extend(root_dir.glob("*ro-crate-metadata.json"))
+    return result
+
+
+def create_manifests_directory(
+    output_location: Path, root_dir: Path, archive_name: str
+) -> None:
+    """Creates a directory containing relevant manifest files for an archived Crate.
+
+    Args:
+        output_location (Path): the path to where the manifests should be written
+        root_dir (Path): the root path of the un-archived RO-Crate
+        archive_name (str): the name of the archived crate (to match this dir)
+
+    Raises:
+        ValueError: if no manifests are found in the RO-Crate
+    """
+    manifests = get_manifests_in_crate(root_dir)
+    if not manifests:
+        raise ValueError(
+            "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
+        )
+    manifest_dir = output_location / (archive_name + "_manifests")
+    manifest_dir.mkdir(parents=True)
+    for manifest in manifests:
+        manifest_name = manifest.name
+        shutil.copy(str(manifest), str(manifest_dir / (manifest_name)))
+
+
 def archive_crate(
     archive_type: str | None,
     output_location: Path,
     crate_location: Path,
-    validate: Optional[bool],
+    validate: Optional[bool] = False,
+    external_manifests: Optional[bool] = False,
 ) -> None:
     """Archive the RO-Crate as a TAR, GZIPPED TAR or ZIP archive
 
@@ -124,7 +172,15 @@ def archive_crate(
         archive_type (str | None): the archive format [tar.gz, tar, or zip]
         output_location (Path): the path where the archive should be written to
         crate_location (Path): the path of the RO-Crate to be archived
+        external_manifests (bool): create external copies of the metadata
+
     """
+    if external_manifests:
+        create_manifests_directory(
+            output_location=output_location.parent,
+            root_dir=crate_location,
+            archive_name=output_location.name,
+        )
     if validate:
         bag = bagit.Bag(crate_location.as_posix())
         if not bag.is_valid():
@@ -132,6 +188,7 @@ def archive_crate(
     if not archive_type:
         return
     file_location = output_location.parent / (f"{output_location.name}.{archive_type}")
+
     match archive_type:
         case "tar.gz":
             logger.info("Tar GZIP archiving %s", crate_location.name)
