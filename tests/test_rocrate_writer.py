@@ -29,6 +29,7 @@ from mytardis_rocrate_builder.rocrate_writer import (
     bagit_crate,
     bulk_decrypt_file,
     bulk_encrypt_file,
+    create_manifests_directory,
     receive_keys_for_crate,
     write_crate,
 )
@@ -239,6 +240,34 @@ def test_bag_crage(tmpdir, data_dir, builder, test_person_name):
     archive_crate("zip", crate_destination, crate_destination, True)
 
 
+@mark.parametrize(
+    "test_input_files,test_expected_files",
+    [
+        (
+            [
+                "manifest-sha1.txt",
+                "manifest-md5.txt",
+                "data/ro-crate-metadata.json",
+                "bagit.txt",
+            ],
+            ["manifest-sha1.txt", "manifest-md5.txt", "ro-crate-metadata.json"],
+        ),
+        (["ro-crate-metadata.json", "datafile.txt"], ["ro-crate-metadata.json"]),
+    ],
+)
+def test_move_manifests(tmpdir, test_input_files, test_expected_files):
+    fake_crate = tmpdir / "fake crate"
+    output_dir = tmpdir / "output"
+    archive_name = "archive"
+    fake_crate.mkdir()
+    (fake_crate / "data").mkdir()
+    for filename in test_input_files:
+        (fake_crate / filename).touch()
+    create_manifests_directory(output_dir, fake_crate, archive_name=archive_name)
+    manifest_contents = (output_dir / "archive_manifests").glob("**/*")
+    assert [manifest.name for manifest in manifest_contents] == test_expected_files
+
+
 def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers):
     crate_destination = tmpdir / "output_crate"
     manifest = CrateManifest()
@@ -249,9 +278,16 @@ def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers
         crate_contents=manifest,
         meta_only=True,
     )
+    # bagit_crate(crate_destination,"test_contact")
     archive_destination = tmpdir / "zipped_crate/"
     archive_output = tmpdir / "files_landing/"
-    archive_crate("zip", archive_destination, crate_destination, False)
+    archive_crate(
+        archive_type="zip",
+        output_location=archive_destination,
+        crate_location=crate_destination,
+        validate=False,
+        external_manifests=True,
+    )
     zip_path = archive_destination.as_posix() + ".zip"
     assert Path(zip_path).is_file()
     with zipfile.ZipFile(zip_path) as validate_zip:
@@ -262,6 +298,10 @@ def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers
         entites = ro_crate_helpers.read_json_entities(Path(metadata_path).parent)
         ro_crate_helpers.check_crate(entites)
         validate_zip.close()
+    # external_manifests is true so check external manifests have been created
+    manifest_dir = tmpdir / "zipped_crate_manifests/"
+    assert manifest_dir.is_dir()
+    assert Path(manifest_dir / "ro-crate-metadata.json").is_file()
 
 
 @mark.parametrize("tar_type,read_mode", [("tar.gz", "r:gz"), ("tar", "r")])

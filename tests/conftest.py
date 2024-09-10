@@ -7,6 +7,7 @@ import json
 import shutil
 from datetime import datetime
 from pathlib import Path
+from sys import platform
 from typing import Any, Dict, List
 
 from gnupg import GPG, GenKey
@@ -173,7 +174,19 @@ def test_passphrase():
 
 @fixture
 def test_gpg_binary_location() -> str:
-    return "/usr/bin/gpg"
+    if platform in ["linux", "linux2"]:
+        # linux
+        return "/usr/bin/gpg"
+    elif platform == "darwin":
+        # OS X
+        return "/opt/homebrew/bin/gpg"
+    elif platform == "win32":
+        # Windows
+        return "C:\\Program Files (x86)\\GnuPG\\bin\\gpg.exe"
+    raise NotImplementedError(
+        "Unknown OS, please define where the gpg executable binary can be located"
+    )
+    return ""
 
 
 @fixture()
