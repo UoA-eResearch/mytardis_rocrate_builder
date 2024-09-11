@@ -47,4 +47,4 @@ jobs:
 
     - name: mypy - static type checking
       # Takes configuration from pyproject.toml
-      run: poetry run python -m myp
+      run: poetry run python -m mypy
