@@ -193,23 +193,12 @@ class ROBuilder:
             person (Person): the person to add to the crate
         """
 
-        # orcid_regex = re.compile(
-        #     r"https://orcid\.org/[0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9]{3}[0-9X]{1}"
-        # )
         upi_regex = re.compile(r"^[a-z]{2,4}[0-9]{3}$")
         person_id = person.id
-        # # Check to see if any of the mt_identifiers are orcids - these are preferred
-        # for identifier in person.mt_identifiers:
-        #     if _ := orcid_regex.fullmatch(identifier):
-        #         person_id = identifier
-        # If no orcid is found check for UPIs
         if not upi_regex.fullmatch(str(person_id)):
             for identifier in person.mt_identifiers:
                 if _ := upi_regex.fullmatch(identifier):
                     person_id = identifier
-        # Finally, if no orcid or UPI is found, use the first identifier
-        # if not person_id:
-        #     person_id = person.mt_identifiers[0]
         person_obj = ROPerson(
             self.crate,
             person_id,

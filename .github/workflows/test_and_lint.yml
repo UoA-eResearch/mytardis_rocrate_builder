@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10","3.12"]
+        python-version: ["3.10","3.11","3.12"]
     name: Python ${{ matrix.python-version }}
     steps:
     - uses: actions/checkout@v1
@@ -37,7 +37,7 @@ jobs:
       run: poetry run python -m black --check --diff .
 
     - name: pytest - run the tests
-      run: poetry run python -m pytest -v --cov=src/ tests/
+      run: poetry run python -m pytest -vv
 
     - name: pylint - static code analysis
       run: poetry run python -m pylint --rcfile .pylintrc mytardis_rocrate_builder/
@@ -47,4 +47,4 @@ jobs:
 
     - name: mypy - static type checking
       # Takes configuration from pyproject.toml
-      run: poetry run python -m myp
+      run: poetry run python -m mypy

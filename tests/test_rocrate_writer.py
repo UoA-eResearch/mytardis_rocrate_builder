@@ -265,7 +265,9 @@ def test_move_manifests(tmpdir, test_input_files, test_expected_files):
         (fake_crate / filename).touch()
     create_manifests_directory(output_dir, fake_crate, archive_name=archive_name)
     manifest_contents = (output_dir / "archive_manifests").glob("**/*")
-    assert [manifest.name for manifest in manifest_contents] == test_expected_files
+    assert set([manifest.name for manifest in manifest_contents]) == set(
+        test_expected_files
+    )
 
 
 def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers):
