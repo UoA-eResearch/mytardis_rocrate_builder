@@ -301,7 +301,7 @@ def test_zip_crate(tmpdir, data_dir, builder, test_person_name, ro_crate_helpers
     # external_manifests is true so check external manifests have been created
     manifest_dir = tmpdir / "zipped_crate_manifests/"
     assert manifest_dir.is_dir()
-    assert Path(manifest_dir / "ro-crate-metadata.json").is_file()
+    assert (manifest_dir / "ro-crate-metadata.json").is_file()
 
 
 @mark.parametrize("tar_type,read_mode", [("tar.gz", "r:gz"), ("tar", "r")])

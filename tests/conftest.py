@@ -174,6 +174,8 @@ def test_passphrase():
 
 @fixture
 def test_gpg_binary_location() -> str:
+    if gpg_which := shutil.which("gpg"):
+        return gpg_which
     if platform in ["linux", "linux2"]:
         # linux
         return "/usr/bin/gpg"

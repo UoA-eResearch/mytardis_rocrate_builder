@@ -7,7 +7,7 @@ import shutil
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import bagit
 from gnupg import GPG, ImportResult
@@ -113,7 +113,7 @@ def bagit_crate(crate_path: Path, contact_name: str) -> None:
     )
 
 
-def get_manifests_in_crate(root_dir: Path) -> List[Path]:
+def get_manifests_in_crate(root_dir: Path) -> list[Path]:
     """Return a list of all manifest type files in the RO-Crate.
 
     Args:
@@ -122,7 +122,7 @@ def get_manifests_in_crate(root_dir: Path) -> List[Path]:
     Returns:
         List[Path]: a list of all bagit manifest or RO-crate metadata paths
     """
-    result: List[Path] = []
+    result: list[Path] = []
     # avoid recursion as RO-Crates may contain a large volume of files
     result.extend(root_dir.glob("*manifest-*.txt"))
     if len(result) > 0:  # if there is a bagit manifest check data dir
@@ -154,16 +154,15 @@ def create_manifests_directory(
     manifest_dir = output_location / (archive_name + "_manifests")
     manifest_dir.mkdir(parents=True)
     for manifest in manifests:
-        manifest_name = manifest.name
-        shutil.copy(str(manifest), str(manifest_dir / (manifest_name)))
+        shutil.copy(str(manifest), str(manifest_dir / manifest.name))
 
 
 def archive_crate(
     archive_type: str | None,
     output_location: Path,
     crate_location: Path,
-    validate: Optional[bool] = False,
-    external_manifests: Optional[bool] = False,
+    validate: bool = False,
+    external_manifests: bool = False,
 ) -> None:
     """Archive the RO-Crate as a TAR, GZIPPED TAR or ZIP archive
 
