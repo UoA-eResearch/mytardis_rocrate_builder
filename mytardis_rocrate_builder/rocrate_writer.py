@@ -126,8 +126,7 @@ def get_manifests_in_crate(root_dir: Path) -> List[Path]:
     # avoid recursion as RO-Crates may contain a large volume of files
     result.extend(root_dir.glob("*manifest-*.txt"))
     if len(result) > 0:  # if there is a bagit manifest check data dir
-        ro_crates = (root_dir / "data").glob("*ro-crate-metadata.json")
-        result.extend([Path("data") / crate_path for crate_path in ro_crates])
+        result.extend((root_dir / "data").glob("*ro-crate-metadata.json"))
         return result
     # otherwise check for un-bagged RO-Crate
     result.extend(root_dir.glob("*ro-crate-metadata.json"))
