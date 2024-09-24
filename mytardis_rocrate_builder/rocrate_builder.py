@@ -610,13 +610,9 @@ class ROBuilder:
             "name": dataset.name,
             "description": dataset.description,
         }
-        instrument = dataset.instrument
-        if (
-            dataset.instrument
-            and isinstance(dataset.instrument, ContextObject)
-            and not self.crate.dereference(dataset.instrument.roc_id)
-        ):
-            instrument = self.add_instrument(dataset.instrument)
+        instrument = self.crate.dereference(
+            dataset.instrument.roc_id
+        ) or self.add_instrument(dataset.instrument)
         properties = self._update_properties(data_object=dataset, properties=properties)
 
         if identifier == ".":
