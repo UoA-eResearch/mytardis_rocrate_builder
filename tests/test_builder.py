@@ -66,10 +66,15 @@ def test_add_sensitive_metadata(
 
 
 def test_no_recipents_failure(
-    builder, test_sensitive_metadata, test_rocrate_sensitive_metadata, test_user
+    builder,
+    test_sensitive_metadata: MTMetadata,
+    test_rocrate_sensitive_metadata,
+    test_user: User,
+    test_second_user: User,
 ) -> None:
     with raises(NoValidKeysError):  # test recipients without keys
         test_user.pubkey_fingerprints = None
+        test_second_user.pubkey_fingerprints = None
         builder.add_metadata(test_sensitive_metadata)
     with raises(NoValidKeysError):  # test recipients missing
         test_sensitive_metadata.recipients = None
