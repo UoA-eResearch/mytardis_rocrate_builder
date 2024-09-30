@@ -43,7 +43,7 @@ def receive_keys_for_crate(
                 if recipient.pubkey_fingerprints:
                     recipient_fingerprints = set(recipient.pubkey_fingerprints)
                     fingerprints.update(recipient_fingerprints)
-    result: Dict[str, Any] = gpg.recv_keys(keyserver, "".join(fingerprints))
+    result: Dict[str, Any] = gpg.recv_keys(keyserver, *fingerprints)
     return result
 
 

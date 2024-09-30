@@ -252,6 +252,20 @@ def test_gpg_key(test_gpg_object: GPG, test_passphrase: str) -> GenKey:
 
 
 @fixture
+def test_second_gpg_key(test_gpg_object: GPG, test_passphrase: str) -> GenKey:
+    key_input = test_gpg_object.gen_key_input(
+        key_type="RSA",
+        key_length=1024,
+        Passphrase=test_passphrase,
+        key_usage="sign encrypt",
+    )
+    key = test_gpg_object.gen_key(key_input)
+    yield key
+    test_gpg_object.delete_keys(key.fingerprint, True, passphrase=test_passphrase)
+    test_gpg_object.delete_keys(key.fingerprint, passphrase=test_passphrase)
+
+
+@fixture
 def test_user(
     test_person_name: str,
     test_email: str,
@@ -266,6 +280,27 @@ def test_user(
         affiliation=test_organization,
         mt_identifiers=[test_person_name],
         pubkey_fingerprints=[test_gpg_key.fingerprint],
+        last_login=test_datatime,
+        date_joined=test_datatime,
+        groups=[test_group],
+    )
+
+
+@fixture
+def test_second_user(
+    test_person_name: str,
+    test_email: str,
+    test_organization: Organisation,
+    test_second_gpg_key: GenKey,
+    test_group: Group,
+    test_datatime: test_datatime,
+):
+    return User(
+        name=test_person_name + "secondary",
+        email=test_email,
+        affiliation=test_organization,
+        mt_identifiers=[test_person_name],
+        pubkey_fingerprints=[test_second_gpg_key.fingerprint],
         last_login=test_datatime,
         date_joined=test_datatime,
         groups=[test_group],
@@ -306,6 +341,7 @@ def test_sensitive_metadata(
     test_metadata_schema: str,
     test_datafile: Datafile,
     test_user: User,
+    test_second_user: User,
 ) -> MTMetadata:
     return MTMetadata(
         name=test_name + "sensitive",
@@ -314,7 +350,7 @@ def test_sensitive_metadata(
         sensitive=True,
         parent=test_datafile,
         mt_schema=test_metadata_schema,
-        recipients=[test_user],
+        recipients=[test_user, test_second_user],
     )
 
 
