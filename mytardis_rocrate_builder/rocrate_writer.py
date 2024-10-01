@@ -18,7 +18,7 @@ from .rocrate_builder import ROBuilder
 from .rocrate_dataclasses.crate_manifest import CrateManifest
 
 logger = logging.getLogger(__name__)
-DEFAULT_KEYSERVER = "https://keyserver.ubuntu.com"
+DEFAULT_KEYSERVER = "keyserver.ubuntu.com"
 
 
 def receive_keys_for_crate(
