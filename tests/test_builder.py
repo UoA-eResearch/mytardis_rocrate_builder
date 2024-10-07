@@ -58,14 +58,14 @@ def test_add_sensitive_metadata(
     builder, test_sensitive_metadata, test_rocrate_sensitive_metadata
 ) -> None:
     crate_metadata = builder.add_metadata(test_sensitive_metadata)
-    assert crate_metadata.get("recipients") is not None
+    assert crate_metadata.get("encryptedTo") is not None
     test_rocrate_sensitive_metadata.append_to(
-        "recipients", crate_metadata.get("recipients")
+        "encryptedTo", crate_metadata.get("encryptedTo")
     )
     assert crate_metadata.properties() == test_rocrate_sensitive_metadata.properties()
 
 
-def test_no_recipents_failure(
+def test_no_recipients_failure(
     builder,
     test_sensitive_metadata: MTMetadata,
     test_rocrate_sensitive_metadata,

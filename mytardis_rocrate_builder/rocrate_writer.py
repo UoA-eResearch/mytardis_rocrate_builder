@@ -229,7 +229,7 @@ def bulk_encrypt_file(
     data_to_encrypt: Path,
     output_path: Path,
 ) -> None:
-    """Encrypt a file using gnupg to a specific set of recipents
+    """Encrypt a file using gnupg to a specific set of recipients
 
     Args:
         gpg_binary (Path): the gpg binary to run this encryption

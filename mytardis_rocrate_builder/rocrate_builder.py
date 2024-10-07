@@ -309,17 +309,17 @@ class ROBuilder:
         if metadata_obj.sensitive:
             if metadata_obj.recipients is None:
                 raise NoValidKeysError(
-                    f"""No recipents found for encrypted metadata:
+                    f"""No recipients found for encrypted metadata:
                         {metadata_obj.identifier}""",
                 )
-            recipents = [
+            recipients = [
                 self.crate.dereference(recipient.roc_id) or self.add_user(recipient)
                 for recipient in metadata_obj.recipients
                 if recipient.pubkey_fingerprints
             ]
-            if len(recipents) < 1:
+            if len(recipients) < 1:
                 raise NoValidKeysError(
-                    f"""No valid recipents with public keys for encrypted metadata:
+                    f"""No valid recipients with public keys for encrypted metadata:
                     {metadata_obj.identifier}""",
                 )
             metadata = EncryptedContextEntity(
@@ -334,7 +334,7 @@ class ROBuilder:
                     "mytardis-schema": metadata_obj.mt_schema,
                 },
             )
-            metadata.append_to("recipients", recipents)
+            metadata.append_to("encryptedTo", recipients)
         else:
             metadata = ContextEntity(
                 self.crate,
