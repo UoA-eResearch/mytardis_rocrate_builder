@@ -143,6 +143,7 @@ def test_add_acl(
 def test_add_additional_properites(
     builder: ROBuilder,
     test_extra_properties,
+    test_extra_properties_output,
     test_context_object,
     test_properties_with_Context_obj,
     test_rocrate_context_entity,
@@ -150,14 +151,22 @@ def test_add_additional_properites(
     properties = {}
     assert (
         builder._add_additional_properties(properties, test_extra_properties)
-        == test_extra_properties
+        == test_extra_properties_output
     )
     properties = {}
     test_extra_properties["Context_obj"] = "#" + test_context_object.id
-    assert (
-        builder._add_additional_properties(properties, test_properties_with_Context_obj)
-        == test_extra_properties
+    test_extra_properties_output["additionalProperties"].append(
+        {
+            "@type": "PropertyValue",
+            "name": "Context_obj",
+            "value": {"@id": test_context_object.roc_id},
+        }
     )
+
+    for val in builder._add_additional_properties(
+        properties, test_properties_with_Context_obj
+    )["additionalProperties"]:
+        assert val in test_extra_properties_output["additionalProperties"]
     assert (
         builder.crate.dereference("#" + test_context_object.id)
         == test_rocrate_context_entity

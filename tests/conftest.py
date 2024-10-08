@@ -106,13 +106,30 @@ def test_datatime() -> datetime:
 
 
 @fixture
-def test_extra_properties() -> datetime:
+def test_extra_properties() -> Dict:
     return {
         "quantity": 16,
         "units": "tons",
         "days": datetime(1, 1, 1, 0, 0).isoformat(),
         "soul": "IOU",
         "left-right": ["iron", "steel"],
+    }
+
+
+@fixture
+def test_extra_properties_output() -> Dict:
+    return {
+        "additionalProperties": [
+            {"@type": "PropertyValue", "name": "quantity", "value": 16},
+            {"@type": "PropertyValue", "name": "units", "value": "tons"},
+            {"@type": "PropertyValue", "name": "days", "value": "0001-01-01T00:00:00"},
+            {"@type": "PropertyValue", "name": "soul", "value": "IOU"},
+            {
+                "@type": "PropertyValue",
+                "name": "left-right",
+                "value": ["iron", "steel"],
+            },
+        ]
     }
 
 
@@ -710,7 +727,7 @@ def test_crate_ACL(
     test_ogranization_type,
     test_description,
     test_datatime,
-    test_extra_properties,
+    test_extra_properties_output,
     crate: ROCrate,
     ro_date,
     test_org_ACL,
@@ -738,7 +755,7 @@ def test_crate_user_ACL(
     test_ogranization_type,
     test_description,
     test_datatime,
-    test_extra_properties,
+    test_extra_properties_output,
     crate: ROCrate,
     ro_date,
     test_person_ACL,
@@ -763,7 +780,7 @@ def test_crate_user_ACL(
 @fixture
 def test_ro_crate_project(
     test_description,
-    test_extra_properties,
+    test_extra_properties_output,
     test_person,
     ro_date,
     crate,
@@ -789,7 +806,7 @@ def test_ro_crate_project(
             "createdBy": [{"@id": "#" + test_user.id}],
             "parentOrganization": [{"@id": "#" + test_organization.id}],
         }
-        | test_extra_properties,
+        | test_extra_properties_output,
     )
 
 
@@ -798,7 +815,7 @@ def test_ro_crate_experiment(
     test_name,
     test_description,
     test_datatime,
-    test_extra_properties,
+    test_extra_properties_output,
     test_person,
     test_ethics_policy,
     ro_date,
@@ -824,7 +841,7 @@ def test_ro_crate_experiment(
             "createdBy": [{"@id": "#" + test_user.id}],
             "sdLicense": [{"@id": test_license.id}],
         }
-        | test_extra_properties,
+        | test_extra_properties_output,
     )
 
 
@@ -834,7 +851,7 @@ def test_ro_crate_dataset(
     test_directory,
     test_description,
     test_datatime,
-    test_extra_properties,
+    test_extra_properties_output,
     test_person,
     test_ethics_policy,
     ro_date,
@@ -859,7 +876,7 @@ def test_ro_crate_dataset(
             "instrument": [{"@id": "#" + str(test_instrument.id)}],
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
-        | test_extra_properties,
+        | test_extra_properties_output,
     )
 
 
@@ -871,7 +888,7 @@ def test_rocrate_datafile(
     test_directory: str,
     ro_date: datetime,
     test_dataset: Dataset,
-    test_extra_properties: Dict[str, Any],
+    test_extra_properties_output: Dict[str, Any],
 ) -> RODataFile:
     source_and_dest = Path(test_directory) / Path(test_filepath)
     return RODataFile(
@@ -892,7 +909,7 @@ def test_rocrate_datafile(
             "datafileVersion": 1,
             "mytardis_classification": "DataClassification.SENSITIVE",
         }
-        | test_extra_properties,
+        | test_extra_properties_output,
     )
 
 

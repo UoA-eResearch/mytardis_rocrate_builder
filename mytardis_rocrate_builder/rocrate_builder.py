@@ -54,6 +54,20 @@ def serialize_optional_date(date: datetime | None) -> str | None:
     return date.isoformat()
 
 
+def add_property_value(name: str, value: Any) -> Dict[str, Any]:
+    """Add a key value pair as a schema.org style "property value"
+
+    Args:
+        name (str): the name/key of the pair
+        value (Any): the value of the pair
+
+    Returns:
+        Dict[str,Any]: the pair as an additional property
+    """
+    logger.debug("adding entity %s of type %s", value, type(value))
+    return {"@type": "PropertyValue", "name": name, "value": value}
+
+
 class ROBuilder:
     """A class to hold and add entries to an ROCrate
 
@@ -394,21 +408,22 @@ class ROBuilder:
             if isinstance(value, List):
                 for index, item in enumerate(value):
                     value[index] = (
-                        self.add_context_object(item).id
+                        {"@id": self.add_context_object(item).id}
                         if isinstance(item, ContextObject)
                         else item
                     )
             if isinstance(value, ContextObject):
-                value = self.add_context_object(value).id
-            if key not in entity_properties.keys():  # pylint: disable=C0201
-                entity_properties[key] = value
-            elif isinstance(entity_properties[key], list):
-                entity_properties[key].append(value)
-            else:
-                entity_properties[key] = [
-                    properties,
-                    value,
+                value = {"@id": self.add_context_object(value).id}
+            if (
+                "additionalProperties" not in entity_properties.keys()
+            ):  # pylint: disable=C0201
+                entity_properties["additionalProperties"] = [
+                    add_property_value(key, value)
                 ]
+            else:
+                entity_properties["additionalProperties"].append(
+                    add_property_value(key, value)
+                )
         return properties
 
     def _add_dates(
@@ -715,16 +730,16 @@ class ROBuilder:
             )
             properties.pop("date_created")
             properties.pop("date_modified")
-        context_entitiy = self.crate.add(
+        context_entity = self.crate.add(
             ContextEntity(self.crate, identifier, properties=properties)
         )
-        return context_entitiy
+        return context_entity
 
     def add_facillity(self, facility: Facility) -> ContextEntity:
         """add a facility as a location to the RO-Crate
 
         Args:
-            facility (Facility): the faciltiy object
+            facility (Facility): the facility object
 
         Returns:
             ContextEntity: the facility as an RO-crate object
