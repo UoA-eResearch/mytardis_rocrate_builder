@@ -64,7 +64,6 @@ def add_property_value(name: str, value: Any) -> Dict[str, Any]:
     Returns:
         Dict[str,Any]: the pair as an additional property
     """
-    logger.debug("adding entity %s of type %s", value, type(value))
     return {"@type": "PropertyValue", "name": name, "value": value}
 
 
