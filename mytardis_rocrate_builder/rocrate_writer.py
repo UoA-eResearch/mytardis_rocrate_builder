@@ -152,7 +152,7 @@ def create_manifests_directory(
             "No Manifests found in directory. Please confirm the dir is a BagIt and/or RO-Crate"
         )
     manifest_dir = output_location / (archive_name + "_manifests")
-    manifest_dir.mkdir(parents=True)
+    manifest_dir.mkdir(parents=True, exist_ok=True)
     for manifest in manifests:
         shutil.copy(str(manifest), str(manifest_dir / manifest.name))
 
